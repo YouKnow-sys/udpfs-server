@@ -21,6 +21,7 @@
     <string name="storage_title">File access needed</string>
     <string name="storage_hint">Grant all files access so the server can share folders on this device</string>
     <string name="storage_grant">Grant</string>
+    <string name="storage_settings_missing">All files access settings are unavailable on this device. Grant it over adb with:\n%s</string>
 
     <string name="connect_title">Connect to this server</string>
     <string name="connect_hint">Point your UDPFS client at this address</string>
@@ -51,6 +52,7 @@
     <string name="config_bind_ip">Bind address</string>
     <string name="config_bind_auto">Automatic</string>
     <string name="config_read_only">Read-only</string>
+    <string name="config_readonly_forced">Android 9/10 only allow this app to write inside its own folder on this storage. Pick the app\'s Android/data folder for write support.</string>
     <string name="config_compression">Compression (ZSO/CSO)</string>
     <string name="config_cache">Decompression cache</string>
     <string name="config_show_stats">Show stats</string>
@@ -68,6 +70,7 @@
     <string name="browser_select_folder">Select %s</string>
     <string name="browser_none">None</string>
     <string name="browser_no_files">No image files found here</string>
+    <string name="browser_no_access">Can\'t read this folder - grant All files access</string>
     <string name="browser_storage">Storage</string>
     <string name="browser_internal_storage">Internal storage</string>
 

@@ -5,8 +5,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import com.udpfs.app.ui.components.focusHighlight
 import com.udpfs.app.ui.BrowseMode
+import com.udpfs.app.core.volumeRootPath
 import com.udpfs.app.core.Formatters
 import com.udpfs.app.R
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.Lifecycle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.res.stringResource
@@ -19,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Text
@@ -62,6 +67,10 @@ private const val PRIMARY_ROOT = "/storage/emulated/0"
 
 private data class Entry(val path: String, val name: String, val isDirectory: Boolean, val size: String?)
 
+private data class Listing(val entries: List<Entry>, val accessible: Boolean)
+
+private val LISTING_UNREADABLE = Listing(entries = emptyList(), accessible = false)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FileBrowserScreen(
@@ -86,17 +95,25 @@ fun FileBrowserScreen(
     val dir = File(dirPath)
     val atVolumes = dirPath in VOLUME_PARENTS
 
-    val volumes = remember(context) {
+    var resumeKey by remember { mutableStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) resumeKey++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val volumes = remember(context, resumeKey) {
         buildList {
             File(PRIMARY_ROOT).takeIf { it.exists() }?.let { add(it) }
             context.getExternalFilesDirs(null).forEach { dirFile ->
-                if (dirFile == null) return@forEach
-                val segments = dirFile.absolutePath.split('/').filter { it.isNotBlank() }.take(3)
-                if (segments.size == 3 && segments[0] == "storage") {
-                    File("/" + segments.joinToString("/"))
-                        .takeIf { it.exists() && it.absolutePath != PRIMARY_ROOT }
-                        ?.let { add(it) }
-                }
+                val root = dirFile
+                    ?.let { volumeRootPath(it.absolutePath, context.packageName) }
+                    ?.let(::File)
+                    ?.takeIf { it.exists() && it.absolutePath != PRIMARY_ROOT }
+                if (root != null) add(root)
             }
         }.distinct()
     }
@@ -108,17 +125,20 @@ fun FileBrowserScreen(
         }
     }
 
-    val entries by produceState<List<Entry>?>(initialValue = null, dirPath, mode, volumes) {
+    val listing by produceState<Listing?>(initialValue = null, dirPath, mode, volumes, resumeKey) {
         value = withContext(Dispatchers.IO) {
             if (atVolumes) {
-                volumes.map { v ->
-                    Entry(
-                        path = v.absolutePath,
-                        name = if (v.absolutePath == PRIMARY_ROOT) internalLabel else v.name,
-                        isDirectory = true,
-                        size = null,
-                    )
-                }
+                Listing(
+                    entries = volumes.map { v ->
+                        Entry(
+                            path = v.absolutePath,
+                            name = if (v.absolutePath == PRIMARY_ROOT) internalLabel else v.name,
+                            isDirectory = true,
+                            size = null,
+                        )
+                    },
+                    accessible = true,
+                )
             } else {
                 dir.listFiles()
                     ?.map { f ->
@@ -133,7 +153,8 @@ fun FileBrowserScreen(
                         e.isDirectory || (mode == BrowseMode.File && BLOCK_EXTENSIONS.any { e.name.lowercase().endsWith(it) })
                     }
                     ?.sortedWith(compareByDescending<Entry> { it.isDirectory }.thenBy { it.name.lowercase() })
-                    ?: emptyList()
+                    ?.let { Listing(entries = it, accessible = true) }
+                    ?: LISTING_UNREADABLE
             }
         }
     }
@@ -183,14 +204,21 @@ fun FileBrowserScreen(
             }
         },
     ) { padding ->
-        val list = entries
+        val result = listing
         when {
-            list == null -> Box(
+            result == null -> Box(
                 Modifier.fillMaxSize().padding(padding),
                 contentAlignment = Alignment.Center,
             ) { CircularProgressIndicator() }
 
-            list.isEmpty() && mode == BrowseMode.File ->
+            !result.accessible -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Text(
+                    stringResource(R.string.browser_no_access),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            result.entries.isEmpty() && mode == BrowseMode.File ->
                 Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                     Text(
                         stringResource(R.string.browser_no_files),
@@ -208,7 +236,7 @@ fun FileBrowserScreen(
                         ) { onPick("") }
                     }
                 }
-                items(list, key = { it.path }) { entry ->
+                items(result.entries, key = { it.path }) { entry ->
                     val isVolume = atVolumes
                     BrowserRow(
                         icon = when {

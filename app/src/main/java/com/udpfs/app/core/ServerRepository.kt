@@ -9,6 +9,7 @@ import kotlinx.coroutines.*
 import com.udpfs.udpfsbridge.Udpfsbridge
 import com.udpfs.udpfsbridge.Logger
 import android.os.SystemClock
+import android.os.Build
 import android.content.Context
 
 sealed interface ServerStatus {
@@ -104,8 +105,13 @@ object ServerRepository {
                 })
                 return@launch
             }
+            val effective = if (forcesReadOnly(Build.VERSION.SDK_INT, cfg.activeStoragePath, appContext?.packageName.orEmpty())) {
+                cfg.copy(readOnly = true)
+            } else {
+                cfg
+            }
             try {
-                withContext(Dispatchers.IO) { controller.start(cfg.toBridgeConfig()) }
+                withContext(Dispatchers.IO) { controller.start(effective.toBridgeConfig()) }
                 if (!_status.compareAndSet(ServerStatus.Starting, ServerStatus.Running)) return@launch
                 _stats.value = StatsSnapshot(running = true)
                 _mount.value = withContext(Dispatchers.IO) {

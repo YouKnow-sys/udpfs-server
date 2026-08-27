@@ -2,6 +2,8 @@ package com.udpfs.app.ui.screens
 
 import com.udpfs.app.ui.components.focusHighlight
 import com.udpfs.app.ui.BrowseTarget
+import com.udpfs.app.core.forcesReadOnly
+import com.udpfs.app.core.activeStoragePath
 import com.udpfs.app.core.StorageMode
 import com.udpfs.app.core.ServerStatus
 import com.udpfs.app.core.ServerConfig
@@ -13,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
@@ -48,12 +51,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.clickable
+import android.os.Build
 
 @Composable
 fun ConfigScreen(vm: AppViewModel, onBrowse: (BrowseTarget) -> Unit, isTv: Boolean = false) {
+    val context = LocalContext.current
     val config by vm.config.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     val enabled = status is ServerStatus.Idle
+
+    val forcedReadOnly = forcesReadOnly(Build.VERSION.SDK_INT, config.activeStoragePath, context.packageName)
 
     var editing by remember { mutableStateOf<Int?>(null) }
 
@@ -153,10 +160,17 @@ fun ConfigScreen(vm: AppViewModel, onBrowse: (BrowseTarget) -> Unit, isTv: Boole
         Section(stringResource(R.string.config_section_features)) {
             SwitchRow(
                 title = stringResource(R.string.config_read_only),
-                checked = config.readOnly,
-                enabled = enabled,
+                checked = config.readOnly || forcedReadOnly,
+                enabled = enabled && !forcedReadOnly,
                 onChange = { v -> vm.updateConfig { it.copy(readOnly = v) } },
             )
+            if (forcedReadOnly) {
+                Text(
+                    stringResource(R.string.config_readonly_forced),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             SwitchRow(
                 title = stringResource(R.string.config_compression),
                 checked = config.enableCompression,

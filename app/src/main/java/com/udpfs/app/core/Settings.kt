@@ -46,6 +46,9 @@ enum class ConfigIssueReason(@StringRes val resId: Int) {
 
 data class ConfigIssue(val reason: ConfigIssueReason)
 
+val ServerConfig.activeStoragePath: String
+    get() = if (storageMode == StorageMode.Folder) fsRoot else blockDevice
+
 fun ServerConfig.validate(): List<ConfigIssue> = buildList {
     when (storageMode) {
         StorageMode.Folder -> if (fsRoot.isBlank()) add(ConfigIssue(ConfigIssueReason.MissingFolder))
