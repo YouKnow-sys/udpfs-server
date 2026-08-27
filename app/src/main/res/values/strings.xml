@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">UDPFS Server</string>
+
+    <string name="nav_server">Server</string>
+    <string name="nav_config">Config</string>
+    <string name="nav_stats">Stats</string>
+
+    <string name="status_idle">Server is stopped</string>
+    <string name="status_starting">Starting…</string>
+    <string name="status_running">Running · %s</string>
+    <string name="status_running_plain">Running</string>
+    <string name="status_stopping">Stopping…</string>
+
+    <string name="action_start">START</string>
+    <string name="action_stop">STOP</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_close">Close</string>
+
+    <string name="storage_title">File access needed</string>
+    <string name="storage_hint">Grant all files access so the server can share folders on this device</string>
+    <string name="storage_grant">Grant</string>
+
+    <string name="connect_title">Connect to this server</string>
+    <string name="connect_hint">Point your UDPFS client at this address</string>
+
+    <string name="mount_title">Shared filesystem</string>
+    <string name="mount_root">Root</string>
+    <string name="mount_block_device">Block device</string>
+    <string name="mount_size">Size</string>
+    <string name="mount_mode">Mode</string>
+    <string name="mount_ro">Read-only</string>
+    <string name="mount_rw">Read-write</string>
+    <string name="mount_compression">Compression</string>
+
+    <string name="config_locked">Stop the server to change these settings</string>
+    <string name="config_section_storage">Storage</string>
+    <string name="config_section_server">Server</string>
+    <string name="config_section_features">Features</string>
+    <string name="config_share">Share</string>
+    <string name="config_mode_folder">Folder</string>
+    <string name="config_mode_image">Disk image</string>
+    <string name="config_fs_root">Filesystem root</string>
+    <string name="config_not_set">Not set</string>
+    <string name="config_block_device">Disk image</string>
+    <string name="config_no_block_device">None — share the folder</string>
+    <string name="config_port">Port</string>
+    <string name="config_sector_size">Sector size</string>
+    <string name="config_peer_timeout">Peer timeout</string>
+    <string name="config_bind_ip">Bind address</string>
+    <string name="config_bind_auto">Automatic</string>
+    <string name="config_read_only">Read-only</string>
+    <string name="config_compression">Compression (ZSO/CSO)</string>
+    <string name="config_cache">Decompression cache</string>
+    <string name="config_show_stats">Show stats</string>
+    <string name="config_auto_start">Start on boot</string>
+
+    <string name="browser_select_folder">Select %s</string>
+    <string name="browser_none">None</string>
+    <string name="browser_no_files">No image files found here</string>
+    <string name="browser_storage">Storage</string>
+    <string name="browser_internal_storage">Internal storage</string>
+
+    <string name="stats_uptime">Uptime %s</string>
+    <string name="stats_peers">%s peers</string>
+    <string name="stats_logs_expand">Expand logs</string>
+    <string name="stats_tx_rate">↑ avg %s</string>
+    <string name="stats_rx_rate">↓ avg %s</string>
+    <string name="stats_section_totals">Totals</string>
+    <string name="stats_section_peers">Peers</string>
+    <string name="stats_no_peers">No peers connected</string>
+    <string name="stats_section_logs">Logs</string>
+    <string name="stats_last_seen">Last seen %s</string>
+    <string name="stats_no_logs">No log output yet</string>
+    <string name="stats_bytes">Sent / received</string>
+    <string name="stats_operations">Operations</string>
+    <string name="stats_errors">Errors</string>
+    <string name="stats_reads">Reads</string>
+    <string name="stats_writes">Writes</string>
+    <string name="stats_packets_tx">Packets sent</string>
+    <string name="stats_packets_rx">Packets received</string>
+    <string name="stats_retransmits">Retransmits</string>
+    <string name="stats_nacks">NACKs</string>
+    <string name="stats_out_of_order">Out of order</string>
+    <string name="stats_peer_resets">Peer resets</string>
+
+    <string name="channel_name">Server status</string>
+    <string name="notif_title">UDPFS Server</string>
+    <string name="notif_running">Serving on %s</string>
+    <string name="notif_starting">Starting…</string>
+    <string name="notif_stopping">Stopping…</string>
+    <string name="notif_idle">Stopped</string>
+    <string name="notif_stop">Stop</string>
+</resources>
