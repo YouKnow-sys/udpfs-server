@@ -1,10 +1,11 @@
 buildscript {
     dependencies {
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.10")
+        classpath(libs.kotlin.gradle.plugin)
     }
 }
 
 plugins {
-    id("com.android.application") version "9.3.1" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.4.10" apply false
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.ktlint) apply false
 }

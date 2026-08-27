@@ -1,27 +1,26 @@
 package com.udpfs.app.core
 
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CoroutineScope
-import com.udpfs.app.R
-import com.udpfs.app.MainActivity
-import androidx.core.app.ServiceCompat
-import androidx.core.app.NotificationCompat
-import android.os.IBinder
-import android.content.pm.ServiceInfo
-import android.content.Intent
-import android.content.Context
-import android.app.Service
-import android.app.PendingIntent
-import android.app.NotificationManager
-import android.app.NotificationChannel
 import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ServiceInfo
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
+import com.udpfs.app.MainActivity
+import com.udpfs.app.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ServerService : Service() {
-
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var lastStartId = 0
     private var observing = false
@@ -30,30 +29,44 @@ class ServerService : Service() {
     override fun onCreate() {
         notifications = getSystemService(NotificationManager::class.java)
         notifications.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, getString(R.string.channel_name), NotificationManager.IMPORTANCE_LOW)
+            NotificationChannel(CHANNEL_ID, getString(R.string.channel_name), NotificationManager.IMPORTANCE_LOW),
         )
     }
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    override fun onStartCommand(
+        intent: Intent?,
+        flags: Int,
+        startId: Int,
+    ): Int {
         lastStartId = startId
         val status = ServerRepository.status.value
         return when (intent?.action ?: ACTION_START) {
             ACTION_START -> {
-                val initial = if (status is ServerStatus.Idle || status is ServerStatus.Starting) {
-                    ServerStatus.Starting
-                } else {
-                    status
-                }
-                ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(initial, ServerRepository.localIP()), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                val initial =
+                    if (status is ServerStatus.Idle || status is ServerStatus.Starting) {
+                        ServerStatus.Starting
+                    } else {
+                        status
+                    }
+                ServiceCompat.startForeground(
+                    this,
+                    NOTIFICATION_ID,
+                    buildNotification(initial, ServerRepository.localIP()),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+                )
                 if (status is ServerStatus.Idle) ServerRepository.start()
                 observeStatus()
                 START_STICKY
             }
+
             ACTION_STOP -> {
                 if (status is ServerStatus.Idle) stopSelfQuietly() else ServerRepository.stop()
                 START_NOT_STICKY
             }
-            else -> START_NOT_STICKY
+
+            else -> {
+                START_NOT_STICKY
+            }
         }
     }
 
@@ -84,25 +97,47 @@ class ServerService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun buildNotification(status: ServerStatus, ip: String): Notification {
-        val open = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val stop = PendingIntent.getService(
-            this, 1, Intent(this, ServerService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val text = when (status) {
-            is ServerStatus.Running -> getString(
-                R.string.notif_running,
-                "$ip:${ServerRepository.activeConfig().port}",
+    private fun buildNotification(
+        status: ServerStatus,
+        ip: String,
+    ): Notification {
+        val open =
+            PendingIntent.getActivity(
+                this,
+                0,
+                Intent(this, MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            is ServerStatus.Starting -> getString(R.string.notif_starting)
-            is ServerStatus.Stopping -> getString(R.string.notif_stopping)
-            is ServerStatus.Idle -> getString(R.string.notif_idle)
-        }
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val stop =
+            PendingIntent.getService(
+                this,
+                1,
+                Intent(this, ServerService::class.java).setAction(ACTION_STOP),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+        val text =
+            when (status) {
+                is ServerStatus.Running -> {
+                    getString(
+                        R.string.notif_running,
+                        "$ip:${ServerRepository.activeConfig().port}",
+                    )
+                }
+
+                is ServerStatus.Starting -> {
+                    getString(R.string.notif_starting)
+                }
+
+                is ServerStatus.Stopping -> {
+                    getString(R.string.notif_stopping)
+                }
+
+                is ServerStatus.Idle -> {
+                    getString(R.string.notif_idle)
+                }
+            }
+        return NotificationCompat
+            .Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(getString(R.string.notif_title))
             .setContentText(text)

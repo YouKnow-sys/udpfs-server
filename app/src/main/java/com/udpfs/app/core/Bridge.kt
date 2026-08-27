@@ -54,7 +54,12 @@ data class MountSnapshot(
     val compressionFormats: List<String> = emptyList(),
 )
 
-data class LogLine(val seq: Long, val timeMillis: Long, val level: String, val message: String)
+data class LogLine(
+    val seq: Long,
+    val timeMillis: Long,
+    val level: String,
+    val message: String,
+)
 
 fun ServerConfig.toBridgeConfig(): Config {
     val c = Config()
@@ -70,54 +75,57 @@ fun ServerConfig.toBridgeConfig(): Config {
     return c
 }
 
-internal fun com.udpfs.udpfsbridge.Stats.toSnapshot(peers: List<PeerSnapshot> = emptyList()) = StatsSnapshot(
-    running = running,
-    uptimeSeconds = uptimeSeconds,
-    peerCount = peerCount.toInt(),
-    bytesTx = bytesTx,
-    bytesRx = bytesRx,
-    avgTxThroughput = avgTxThroughput,
-    avgRxThroughput = avgRxThroughput,
-    totalOps = totalOps,
-    errors = errors,
-    reads = reads,
-    writes = writes,
-    packetsTx = packetsTx,
-    packetsRx = packetsRx,
-    retransmits = retransmits,
-    nackCount = nackCount,
-    outOfOrder = outOfOrder,
-    peerNackCount = peerNackCount,
-    resetCount = resetCount,
-    peers = peers,
-)
+internal fun com.udpfs.udpfsbridge.Stats.toSnapshot(peers: List<PeerSnapshot> = emptyList()) =
+    StatsSnapshot(
+        running = running,
+        uptimeSeconds = uptimeSeconds,
+        peerCount = peerCount.toInt(),
+        bytesTx = bytesTx,
+        bytesRx = bytesRx,
+        avgTxThroughput = avgTxThroughput,
+        avgRxThroughput = avgRxThroughput,
+        totalOps = totalOps,
+        errors = errors,
+        reads = reads,
+        writes = writes,
+        packetsTx = packetsTx,
+        packetsRx = packetsRx,
+        retransmits = retransmits,
+        nackCount = nackCount,
+        outOfOrder = outOfOrder,
+        peerNackCount = peerNackCount,
+        resetCount = resetCount,
+        peers = peers,
+    )
 
-internal fun com.udpfs.udpfsbridge.PeerStats.toSnapshot() = PeerSnapshot(
-    addr = addr.orEmpty(),
-    lastSeenUnix = lastSeenUnix,
-    bytesTx = bytesTx,
-    bytesRx = bytesRx,
-    avgTxThroughput = avgTxThroughput,
-    avgRxThroughput = avgRxThroughput,
-    totalOps = totalOps,
-    errors = errors,
-    reads = reads,
-    writes = writes,
-    packetsTx = packetsTx,
-    packetsRx = packetsRx,
-    retransmits = retransmits,
-    nackCount = nackCount,
-    outOfOrder = outOfOrder,
-    peerNackCount = peerNackCount,
-    resetCount = resetCount,
-)
+internal fun com.udpfs.udpfsbridge.PeerStats.toSnapshot() =
+    PeerSnapshot(
+        addr = addr.orEmpty(),
+        lastSeenUnix = lastSeenUnix,
+        bytesTx = bytesTx,
+        bytesRx = bytesRx,
+        avgTxThroughput = avgTxThroughput,
+        avgRxThroughput = avgRxThroughput,
+        totalOps = totalOps,
+        errors = errors,
+        reads = reads,
+        writes = writes,
+        packetsTx = packetsTx,
+        packetsRx = packetsRx,
+        retransmits = retransmits,
+        nackCount = nackCount,
+        outOfOrder = outOfOrder,
+        peerNackCount = peerNackCount,
+        resetCount = resetCount,
+    )
 
-internal fun com.udpfs.udpfsbridge.MountInfo.toSnapshot(compressionFormats: List<String> = emptyList()) = MountSnapshot(
-    fsRoot = getFSRoot().orEmpty(),
-    blockDevice = blockDevice.orEmpty(),
-    sectorSize = sectorSize.toInt(),
-    totalSectors = totalSectors,
-    totalBytes = totalBytes,
-    readOnly = readOnly,
-    compressionFormats = compressionFormats,
-)
+internal fun com.udpfs.udpfsbridge.MountInfo.toSnapshot(compressionFormats: List<String> = emptyList()) =
+    MountSnapshot(
+        fsRoot = getFSRoot().orEmpty(),
+        blockDevice = blockDevice.orEmpty(),
+        sectorSize = sectorSize.toInt(),
+        totalSectors = totalSectors,
+        totalBytes = totalBytes,
+        readOnly = readOnly,
+        compressionFormats = compressionFormats,
+    )

@@ -1,10 +1,9 @@
 package com.udpfs.app.core
 
-import org.junit.Test
 import org.junit.Assert.assertEquals
+import org.junit.Test
 
 class FormattersTest {
-
     @Test
     fun `bytes formats small values without a unit`() {
         assertEquals("0 B", Formatters.bytes(0))

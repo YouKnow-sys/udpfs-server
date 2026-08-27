@@ -1,60 +1,64 @@
 package com.udpfs.app.ui.screens
 
-import com.udpfs.app.ui.components.focusHighlight
-import com.udpfs.app.ui.BrowseTarget
-import com.udpfs.app.core.forcesReadOnly
-import com.udpfs.app.core.activeStoragePath
-import com.udpfs.app.core.StorageMode
-import com.udpfs.app.core.ServerStatus
-import com.udpfs.app.core.ServerConfig
-import com.udpfs.app.R
-import com.udpfs.app.AppViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.ui.unit.dp
+import android.os.Build
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.Composable
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.Switch
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.Icons
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.clickable
-import android.os.Build
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.udpfs.app.AppViewModel
+import com.udpfs.app.R
+import com.udpfs.app.core.ServerConfig
+import com.udpfs.app.core.ServerStatus
+import com.udpfs.app.core.StorageMode
+import com.udpfs.app.core.activeStoragePath
+import com.udpfs.app.core.forcesReadOnly
+import com.udpfs.app.ui.BrowseTarget
+import com.udpfs.app.ui.components.focusHighlight
 
 @Composable
-fun ConfigScreen(vm: AppViewModel, onBrowse: (BrowseTarget) -> Unit, isTv: Boolean = false) {
+fun ConfigScreen(
+    vm: AppViewModel,
+    onBrowse: (BrowseTarget) -> Unit,
+    isTv: Boolean = false,
+) {
     val context = LocalContext.current
     val config by vm.config.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
@@ -205,13 +209,14 @@ fun ConfigScreen(vm: AppViewModel, onBrowse: (BrowseTarget) -> Unit, isTv: Boole
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(
-                horizontal = if (isTv) 48.dp else 20.dp,
-                vertical = if (isTv) 24.dp else 12.dp,
-            ),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    horizontal = if (isTv) 48.dp else 20.dp,
+                    vertical = if (isTv) 24.dp else 12.dp,
+                ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (!enabled) {
@@ -252,25 +257,30 @@ fun ConfigScreen(vm: AppViewModel, onBrowse: (BrowseTarget) -> Unit, isTv: Boole
 
     editing?.let { edit ->
         when (edit) {
-            EDIT_PORT -> NumberDialog(
-                title = stringResource(R.string.config_port),
-                initial = config.port.toString(),
-                onDismiss = { editing = null },
-                onConfirm = { value ->
-                    vm.updateConfig { it.copy(port = value.coerceIn(1, 65535)) }
-                    editing = null
-                },
-            )
-            EDIT_BIND_IP -> TextDialog(
-                title = stringResource(R.string.config_bind_ip),
-                initial = config.bindIP,
-                placeholder = stringResource(R.string.config_bind_auto),
-                onDismiss = { editing = null },
-                onConfirm = { value ->
-                    vm.updateConfig { it.copy(bindIP = value.trim()) }
-                    editing = null
-                },
-            )
+            EDIT_PORT -> {
+                NumberDialog(
+                    title = stringResource(R.string.config_port),
+                    initial = config.port.toString(),
+                    onDismiss = { editing = null },
+                    onConfirm = { value ->
+                        vm.updateConfig { it.copy(port = value.coerceIn(1, 65535)) }
+                        editing = null
+                    },
+                )
+            }
+
+            EDIT_BIND_IP -> {
+                TextDialog(
+                    title = stringResource(R.string.config_bind_ip),
+                    initial = config.bindIP,
+                    placeholder = stringResource(R.string.config_bind_auto),
+                    onDismiss = { editing = null },
+                    onConfirm = { value ->
+                        vm.updateConfig { it.copy(bindIP = value.trim()) }
+                        editing = null
+                    },
+                )
+            }
         }
     }
 }
@@ -279,7 +289,10 @@ private const val EDIT_PORT = 1
 private const val EDIT_BIND_IP = 2
 
 @Composable
-private fun Section(title: String, content: @Composable () -> Unit) {
+private fun Section(
+    title: String,
+    content: @Composable () -> Unit,
+) {
     Column(Modifier.padding(top = 8.dp)) {
         Text(
             title,
@@ -349,19 +362,20 @@ private fun StepperRow(
             "$value$suffix",
             style = MaterialTheme.typography.bodyLarge,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier
-                .width(92.dp)
-                .then(
-                    if (onValueClick != null && enabled) {
-                        Modifier
-                            .focusHighlight(MaterialTheme.shapes.small)
-                            .clip(MaterialTheme.shapes.small)
-                            .clickable(onClick = onValueClick)
-                            .padding(vertical = 4.dp)
-                    } else {
-                        Modifier
-                    }
-                ),
+            modifier =
+                Modifier
+                    .width(92.dp)
+                    .then(
+                        if (onValueClick != null && enabled) {
+                            Modifier
+                                .focusHighlight(MaterialTheme.shapes.small)
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable(onClick = onValueClick)
+                                .padding(vertical = 4.dp)
+                        } else {
+                            Modifier
+                        },
+                    ),
         )
         IconButton(onClick = { onChange((value + step).coerceAtMost(max)) }, enabled = enabled && value < max) {
             Icon(Icons.Filled.Add, contentDescription = null)

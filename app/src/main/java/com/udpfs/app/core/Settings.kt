@@ -1,16 +1,16 @@
 package com.udpfs.app.core
 
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.Flow
-import com.udpfs.app.R
-import androidx.datastore.preferences.preferencesDataStore
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.Preferences
-import androidx.annotation.StringRes
 import android.content.Context
+import androidx.annotation.StringRes
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import com.udpfs.app.R
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
@@ -35,7 +35,9 @@ data class ServerConfig(
     }
 }
 
-enum class ConfigIssueReason(@StringRes val resId: Int) {
+enum class ConfigIssueReason(
+    @StringRes val resId: Int,
+) {
     MissingFolder(R.string.config_issue_missing_folder),
     MissingBlockDevice(R.string.config_issue_missing_block_device),
     PortRange(R.string.config_issue_port_range),
@@ -44,21 +46,24 @@ enum class ConfigIssueReason(@StringRes val resId: Int) {
     CompressionCache(R.string.config_issue_compression_cache),
 }
 
-data class ConfigIssue(val reason: ConfigIssueReason)
+data class ConfigIssue(
+    val reason: ConfigIssueReason,
+)
 
 val ServerConfig.activeStoragePath: String
     get() = if (storageMode == StorageMode.Folder) fsRoot else blockDevice
 
-fun ServerConfig.validate(): List<ConfigIssue> = buildList {
-    when (storageMode) {
-        StorageMode.Folder -> if (fsRoot.isBlank()) add(ConfigIssue(ConfigIssueReason.MissingFolder))
-        StorageMode.DiskImage -> if (blockDevice.isBlank()) add(ConfigIssue(ConfigIssueReason.MissingBlockDevice))
+fun ServerConfig.validate(): List<ConfigIssue> =
+    buildList {
+        when (storageMode) {
+            StorageMode.Folder -> if (fsRoot.isBlank()) add(ConfigIssue(ConfigIssueReason.MissingFolder))
+            StorageMode.DiskImage -> if (blockDevice.isBlank()) add(ConfigIssue(ConfigIssueReason.MissingBlockDevice))
+        }
+        if (port !in 1..65535) add(ConfigIssue(ConfigIssueReason.PortRange))
+        if (sectorSize !in ServerConfig.SECTOR_SIZES) add(ConfigIssue(ConfigIssueReason.SectorSize))
+        if (peerTimeoutMinutes !in 1..1440) add(ConfigIssue(ConfigIssueReason.PeerTimeoutRange))
+        if (enableCompression && compressionCacheSize < 1) add(ConfigIssue(ConfigIssueReason.CompressionCache))
     }
-    if (port !in 1..65535) add(ConfigIssue(ConfigIssueReason.PortRange))
-    if (sectorSize !in ServerConfig.SECTOR_SIZES) add(ConfigIssue(ConfigIssueReason.SectorSize))
-    if (peerTimeoutMinutes !in 1..1440) add(ConfigIssue(ConfigIssueReason.PeerTimeoutRange))
-    if (enableCompression && compressionCacheSize < 1) add(ConfigIssue(ConfigIssueReason.CompressionCache))
-}
 
 private object Keys {
     val storageMode = stringPreferencesKey("storage_mode")
@@ -77,23 +82,25 @@ private object Keys {
 
 private val DEFAULTS = ServerConfig()
 
-private fun Preferences.toServerConfig() = ServerConfig(
-    storageMode = this[Keys.storageMode].toStorageMode(),
-    fsRoot = this[Keys.fsRoot] ?: DEFAULTS.fsRoot,
-    blockDevice = this[Keys.blockDevice] ?: DEFAULTS.blockDevice,
-    bindIP = this[Keys.bindIP] ?: DEFAULTS.bindIP,
-    port = this[Keys.port] ?: DEFAULTS.port,
-    sectorSize = this[Keys.sectorSize] ?: DEFAULTS.sectorSize,
-    readOnly = this[Keys.readOnly] ?: DEFAULTS.readOnly,
-    enableCompression = this[Keys.enableCompression] ?: DEFAULTS.enableCompression,
-    compressionCacheSize = this[Keys.compressionCacheSize] ?: DEFAULTS.compressionCacheSize,
-    peerTimeoutMinutes = this[Keys.peerTimeoutMinutes] ?: DEFAULTS.peerTimeoutMinutes,
-    showStats = this[Keys.showStats] ?: DEFAULTS.showStats,
-    autoStart = this[Keys.autoStart] ?: DEFAULTS.autoStart,
-)
+private fun Preferences.toServerConfig() =
+    ServerConfig(
+        storageMode = this[Keys.storageMode].toStorageMode(),
+        fsRoot = this[Keys.fsRoot] ?: DEFAULTS.fsRoot,
+        blockDevice = this[Keys.blockDevice] ?: DEFAULTS.blockDevice,
+        bindIP = this[Keys.bindIP] ?: DEFAULTS.bindIP,
+        port = this[Keys.port] ?: DEFAULTS.port,
+        sectorSize = this[Keys.sectorSize] ?: DEFAULTS.sectorSize,
+        readOnly = this[Keys.readOnly] ?: DEFAULTS.readOnly,
+        enableCompression = this[Keys.enableCompression] ?: DEFAULTS.enableCompression,
+        compressionCacheSize = this[Keys.compressionCacheSize] ?: DEFAULTS.compressionCacheSize,
+        peerTimeoutMinutes = this[Keys.peerTimeoutMinutes] ?: DEFAULTS.peerTimeoutMinutes,
+        showStats = this[Keys.showStats] ?: DEFAULTS.showStats,
+        autoStart = this[Keys.autoStart] ?: DEFAULTS.autoStart,
+    )
 
-class Settings(private val context: Context) {
-
+class Settings(
+    private val context: Context,
+) {
     val config: Flow<ServerConfig> = context.dataStore.data.map { it.toServerConfig() }
 
     suspend fun update(transform: (ServerConfig) -> ServerConfig) {
@@ -115,5 +122,4 @@ class Settings(private val context: Context) {
     }
 }
 
-private fun String?.toStorageMode(): StorageMode =
-    if (this == StorageMode.DiskImage.name) StorageMode.DiskImage else StorageMode.Folder
+private fun String?.toStorageMode(): StorageMode = if (this == StorageMode.DiskImage.name) StorageMode.DiskImage else StorageMode.Folder

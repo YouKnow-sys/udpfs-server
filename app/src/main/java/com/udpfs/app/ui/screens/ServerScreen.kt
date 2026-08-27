@@ -1,73 +1,76 @@
 package com.udpfs.app.ui.screens
 
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import com.udpfs.app.ui.components.focusRing
-import com.udpfs.app.ui.components.InfoRow
-import com.udpfs.app.core.StorageMode
-import com.udpfs.app.core.ServerStatus
-import com.udpfs.app.core.ServerService
-import com.udpfs.app.core.ServerRepository
-import com.udpfs.app.core.ServerConfig
-import com.udpfs.app.core.Permissions
-import com.udpfs.app.core.MountSnapshot
-import com.udpfs.app.core.Formatters
-import com.udpfs.app.R
-import com.udpfs.app.AppViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.Lifecycle
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.Composable
-import androidx.compose.material3.Text
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Card
-import androidx.compose.material3.Button
-import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.FolderOff
-import androidx.compose.material.icons.Icons
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.border
-import androidx.compose.foundation.background
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.compose.rememberLauncherForActivityResult
 import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FolderOff
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.udpfs.app.AppViewModel
+import com.udpfs.app.R
+import com.udpfs.app.core.Formatters
+import com.udpfs.app.core.MountSnapshot
+import com.udpfs.app.core.Permissions
+import com.udpfs.app.core.ServerConfig
+import com.udpfs.app.core.ServerRepository
+import com.udpfs.app.core.ServerService
+import com.udpfs.app.core.ServerStatus
+import com.udpfs.app.core.StorageMode
+import com.udpfs.app.ui.components.InfoRow
+import com.udpfs.app.ui.components.focusRing
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
-fun ServerScreen(vm: AppViewModel, isTv: Boolean = false) {
+fun ServerScreen(
+    vm: AppViewModel,
+    isTv: Boolean = false,
+) {
     val context = LocalContext.current
     val status by vm.status.collectAsStateWithLifecycle()
     val config by vm.config.collectAsStateWithLifecycle()
@@ -82,44 +85,61 @@ fun ServerScreen(vm: AppViewModel, isTv: Boolean = false) {
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                storageGranted = Permissions.hasStorageAccess(context)
-                scope.launch { ip = withContext(Dispatchers.IO) { ServerRepository.localIP() } }
+        val observer =
+            LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    storageGranted = Permissions.hasStorageAccess(context)
+                    scope.launch { ip = withContext(Dispatchers.IO) { ServerRepository.localIP() } }
+                }
             }
-        }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val requestStoragePerms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        storageGranted = Permissions.hasStorageAccess(context)
-    }
-    val requestNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        ServerService.start(context)
-    }
+    val requestStoragePerms =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            storageGranted = Permissions.hasStorageAccess(context)
+        }
+    val requestNotifications =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+            ServerService.start(context)
+        }
 
     val toggle: () -> Unit = {
         when (status) {
-            ServerStatus.Idle -> when {
-                !storageGranted -> requestStorage(context, requestStoragePerms)
-                Permissions.needsNotificationPermission(context) ->
-                    requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
-                else -> ServerService.start(context)
+            ServerStatus.Idle -> {
+                when {
+                    !storageGranted -> {
+                        requestStorage(context, requestStoragePerms)
+                    }
+
+                    Permissions.needsNotificationPermission(context) -> {
+                        requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+
+                    else -> {
+                        ServerService.start(context)
+                    }
+                }
             }
-            ServerStatus.Running -> ServerService.stop(context)
+
+            ServerStatus.Running -> {
+                ServerService.stop(context)
+            }
+
             else -> {}
         }
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(
-                horizontal = if (isTv) 48.dp else 24.dp,
-                vertical = if (isTv) 32.dp else 16.dp,
-            ),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    horizontal = if (isTv) 48.dp else 24.dp,
+                    vertical = if (isTv) 32.dp else 16.dp,
+                ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(if (isTv) 24.dp else 16.dp),
     ) {
@@ -176,7 +196,10 @@ private fun requestStorage(
 }
 
 @Composable
-private fun StatusText(status: ServerStatus, vm: AppViewModel) {
+private fun StatusText(
+    status: ServerStatus,
+    vm: AppViewModel,
+) {
     val stats by vm.stats.collectAsStateWithLifecycle()
     Text(
         text = statusLabel(status, stats.uptimeSeconds),
@@ -186,34 +209,57 @@ private fun StatusText(status: ServerStatus, vm: AppViewModel) {
 }
 
 @Composable
-private fun statusLabel(status: ServerStatus, uptimeSeconds: Long): String = when (status) {
-    ServerStatus.Idle -> stringResource(R.string.status_idle)
-    ServerStatus.Starting -> stringResource(R.string.status_starting)
-    ServerStatus.Running ->
-        if (uptimeSeconds > 0) stringResource(R.string.status_running, Formatters.duration(uptimeSeconds))
-        else stringResource(R.string.status_running_plain)
-    ServerStatus.Stopping -> stringResource(R.string.status_stopping)
-}
+private fun statusLabel(
+    status: ServerStatus,
+    uptimeSeconds: Long,
+): String =
+    when (status) {
+        ServerStatus.Idle -> {
+            stringResource(R.string.status_idle)
+        }
+
+        ServerStatus.Starting -> {
+            stringResource(R.string.status_starting)
+        }
+
+        ServerStatus.Running -> {
+            if (uptimeSeconds > 0) {
+                stringResource(R.string.status_running, Formatters.duration(uptimeSeconds))
+            } else {
+                stringResource(R.string.status_running_plain)
+            }
+        }
+
+        ServerStatus.Stopping -> {
+            stringResource(R.string.status_stopping)
+        }
+    }
 
 @Composable
-private fun PowerButton(running: Boolean, busy: Boolean, size: Dp, onToggle: () -> Unit) {
+private fun PowerButton(
+    running: Boolean,
+    busy: Boolean,
+    size: Dp,
+    onToggle: () -> Unit,
+) {
     val haptics = LocalHapticFeedback.current
     val container = if (running) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
     val content = if (running) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
     val ring = if (running) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
 
     Box(
-        modifier = Modifier
-            .size(size)
-            .shadow(14.dp, CircleShape, ambientColor = ring, spotColor = ring)
-            .focusRing(CircleShape)
-            .clip(CircleShape)
-            .background(container)
-            .border(5.dp, ring, CircleShape)
-            .clickable(enabled = !busy) {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                onToggle()
-            },
+        modifier =
+            Modifier
+                .size(size)
+                .shadow(14.dp, CircleShape, ambientColor = ring, spotColor = ring)
+                .focusRing(CircleShape)
+                .clip(CircleShape)
+                .background(container)
+                .border(5.dp, ring, CircleShape)
+                .clickable(enabled = !busy) {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    onToggle()
+                },
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -234,7 +280,11 @@ private fun PowerButton(running: Boolean, busy: Boolean, size: Dp, onToggle: () 
 }
 
 @Composable
-private fun ConnectCard(ip: String, port: Int, startAligned: Boolean) {
+private fun ConnectCard(
+    ip: String,
+    port: Int,
+    startAligned: Boolean,
+) {
     Card(Modifier.fillMaxWidth()) {
         Column(
             Modifier.fillMaxWidth().padding(if (startAligned) 24.dp else 20.dp),

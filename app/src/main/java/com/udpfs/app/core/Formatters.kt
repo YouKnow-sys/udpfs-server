@@ -1,10 +1,9 @@
 package com.udpfs.app.core
 
-import kotlin.math.abs
 import java.util.Locale
+import kotlin.math.abs
 
 object Formatters {
-
     private val BYTE_UNITS = arrayOf("KiB", "MiB", "GiB", "TiB")
 
     fun bytes(v: Long): String {
@@ -17,8 +16,7 @@ object Formatters {
         return String.format(Locale.US, "%.1f PiB", value / 1024)
     }
 
-    fun rate(bytesPerSecond: Double): String =
-        if (bytesPerSecond < 1.0) "0 B/s" else bytes(bytesPerSecond.toLong()) + "/s"
+    fun rate(bytesPerSecond: Double): String = if (bytesPerSecond < 1.0) "0 B/s" else bytes(bytesPerSecond.toLong()) + "/s"
 
     fun duration(totalSeconds: Long): String {
         val h = totalSeconds / 3600

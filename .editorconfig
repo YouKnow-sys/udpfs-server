@@ -1,0 +1,19 @@
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+end_of_line = lf
+
+[*.{kt,kts}]
+ij_kotlin_code_style_defaults = KOTLIN_OFFICIAL
+ktlint_code_style = ktlint_official
+max_line_length = 140
+# Experimental extras worth enforcing on this codebase.
+ktlint_standard_class-naming = enabled
+ktlint_standard_comment-wrapping = enabled
+ktlint_standard_kdoc-wrapping = enabled
+# Compose factory composables are PascalCase by convention.
+ktlint_function_naming_ignore_when_annotated_with = Composable, Preview

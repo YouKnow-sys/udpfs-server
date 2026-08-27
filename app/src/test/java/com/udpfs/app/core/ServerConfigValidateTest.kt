@@ -1,11 +1,10 @@
 package com.udpfs.app.core
 
-import org.junit.Test
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
 
 class ServerConfigValidateTest {
-
     private val valid = ServerConfig(fsRoot = "/storage/emulated/0/share")
 
     @Test
@@ -15,10 +14,11 @@ class ServerConfigValidateTest {
 
     @Test
     fun `a complete disk image config has no issues`() {
-        val config = ServerConfig(
-            storageMode = StorageMode.DiskImage,
-            blockDevice = "/storage/emulated/0/game.iso",
-        )
+        val config =
+            ServerConfig(
+                storageMode = StorageMode.DiskImage,
+                blockDevice = "/storage/emulated/0/game.iso",
+            )
         assertTrue(config.validate().isEmpty())
     }
 

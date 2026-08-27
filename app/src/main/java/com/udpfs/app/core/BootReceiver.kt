@@ -1,15 +1,17 @@
 package com.udpfs.app.core
 
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CoroutineScope
-import android.content.Intent
-import android.content.Context
 import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class BootReceiver : BroadcastReceiver() {
-
-    override fun onReceive(context: Context, intent: Intent) {
+    override fun onReceive(
+        context: Context,
+        intent: Intent,
+    ) {
         if (intent.action !in BOOT_ACTIONS) return
         val result = goAsync()
         CoroutineScope(Dispatchers.IO).launch {

@@ -1,68 +1,71 @@
 package com.udpfs.app.ui.screens
 
-import java.time.format.DateTimeFormatter
-import java.time.ZoneId
-import java.time.Instant
-import kotlinx.coroutines.launch
-import com.udpfs.app.ui.components.focusHighlight
-import com.udpfs.app.ui.components.InfoRow
-import com.udpfs.app.core.StatsSnapshot
-import com.udpfs.app.core.PeerSnapshot
-import com.udpfs.app.core.LogLine
-import com.udpfs.app.core.Formatters
-import com.udpfs.app.R
-import com.udpfs.app.AppViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.Composable
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.Text
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Card
-import androidx.compose.material.icons.filled.OpenInFull
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.Icons
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.gestures.animateScrollBy
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.udpfs.app.AppViewModel
+import com.udpfs.app.R
+import com.udpfs.app.core.Formatters
+import com.udpfs.app.core.LogLine
+import com.udpfs.app.core.PeerSnapshot
+import com.udpfs.app.core.StatsSnapshot
+import com.udpfs.app.ui.components.InfoRow
+import com.udpfs.app.ui.components.focusHighlight
+import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @Composable
-fun StatsScreen(vm: AppViewModel, isTv: Boolean = false) {
+fun StatsScreen(
+    vm: AppViewModel,
+    isTv: Boolean = false,
+) {
     val stats by vm.stats.collectAsStateWithLifecycle()
     val logs by vm.logs.collectAsStateWithLifecycle()
     val timeFormat = remember { DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault()) }
@@ -72,25 +75,33 @@ fun StatsScreen(vm: AppViewModel, isTv: Boolean = false) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    val tvScroll = remember(isTv) {
-        if (!isTv) Modifier
-        else Modifier.onKeyEvent { event ->
-            if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-            val viewport = (listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset).toFloat()
-            val step = viewport * 0.4f
-            when (event.key) {
-                Key.DirectionDown -> {
-                    scope.launch { listState.animateScrollBy(step) }
-                    true
+    val tvScroll =
+        remember(isTv) {
+            if (!isTv) {
+                Modifier
+            } else {
+                Modifier.onKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                    val viewport = (listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset).toFloat()
+                    val step = viewport * 0.4f
+                    when (event.key) {
+                        Key.DirectionDown -> {
+                            scope.launch { listState.animateScrollBy(step) }
+                            true
+                        }
+
+                        Key.DirectionUp -> {
+                            scope.launch { listState.animateScrollBy(-step) }
+                            true
+                        }
+
+                        else -> {
+                            false
+                        }
+                    }
                 }
-                Key.DirectionUp -> {
-                    scope.launch { listState.animateScrollBy(-step) }
-                    true
-                }
-                else -> false
             }
         }
-    }
 
     LazyColumn(
         state = listState,
@@ -167,11 +178,12 @@ fun StatsScreen(vm: AppViewModel, isTv: Boolean = false) {
                             modifier = Modifier.weight(1f),
                         )
                         Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .focusHighlight(MaterialTheme.shapes.small)
-                                .clip(MaterialTheme.shapes.small)
-                                .clickable { logExpanded = true },
+                            modifier =
+                                Modifier
+                                    .size(28.dp)
+                                    .focusHighlight(MaterialTheme.shapes.small)
+                                    .clip(MaterialTheme.shapes.small)
+                                    .clickable { logExpanded = true },
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(
@@ -192,7 +204,11 @@ fun StatsScreen(vm: AppViewModel, isTv: Boolean = false) {
                     } else {
                         val recentLogs = remember(logs) { logs.takeLast(100).asReversed() }
                         LazyColumn(
-                            Modifier.fillMaxWidth().height(220.dp).padding(horizontal = 16.dp).padding(bottom = 12.dp),
+                            Modifier
+                                .fillMaxWidth()
+                                .height(220.dp)
+                                .padding(horizontal = 16.dp)
+                                .padding(bottom = 12.dp),
                         ) {
                             items(recentLogs, key = { it.seq }) { line ->
                                 LogLineRow(line, timeFormat)
@@ -251,12 +267,16 @@ private fun LogDialog(
 }
 
 @Composable
-private fun LogLineRow(line: LogLine, timeFormat: DateTimeFormatter) {
-    val color = when (line.level.uppercase()) {
-        "ERROR" -> MaterialTheme.colorScheme.error
-        "WARN" -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
-    }
+private fun LogLineRow(
+    line: LogLine,
+    timeFormat: DateTimeFormatter,
+) {
+    val color =
+        when (line.level.uppercase()) {
+            "ERROR" -> MaterialTheme.colorScheme.error
+            "WARN" -> MaterialTheme.colorScheme.tertiary
+            else -> MaterialTheme.colorScheme.onSurfaceVariant
+        }
     Text(
         "${timeFormat.format(Instant.ofEpochMilli(line.timeMillis))}  ${line.message}",
         style = MaterialTheme.typography.bodySmall,
@@ -266,7 +286,10 @@ private fun LogLineRow(line: LogLine, timeFormat: DateTimeFormatter) {
 }
 
 @Composable
-private fun TotalsCard(stats: StatsSnapshot, modifier: Modifier = Modifier) {
+private fun TotalsCard(
+    stats: StatsSnapshot,
+    modifier: Modifier = Modifier,
+) {
     Card(modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -289,7 +312,10 @@ private fun TotalsCard(stats: StatsSnapshot, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PeersCard(peers: List<PeerSnapshot>, modifier: Modifier = Modifier) {
+private fun PeersCard(
+    peers: List<PeerSnapshot>,
+    modifier: Modifier = Modifier,
+) {
     Card(modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.stats_section_peers), style = MaterialTheme.typography.titleSmall)

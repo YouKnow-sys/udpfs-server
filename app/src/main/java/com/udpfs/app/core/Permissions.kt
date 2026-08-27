@@ -1,17 +1,16 @@
 package com.udpfs.app.core
 
-import androidx.core.content.ContextCompat
-import android.provider.Settings
-import android.os.Environment
-import android.os.Build
-import android.net.Uri
-import android.content.pm.PackageManager
-import android.content.Intent
-import android.content.Context
 import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
+import androidx.core.content.ContextCompat
 
 object Permissions {
-
     private const val GRANTED = PackageManager.PERMISSION_GRANTED
 
     fun hasStorageAccess(context: Context): Boolean =
