@@ -75,7 +75,10 @@
     <string name="browser_internal_storage">Internal storage</string>
 
     <string name="stats_uptime">Uptime %s</string>
-    <string name="stats_peers">%s peers</string>
+    <plurals name="stats_peers">
+        <item quantity="one">%s peer</item>
+        <item quantity="other">%s peers</item>
+    </plurals>
     <string name="stats_logs_expand">Expand logs</string>
     <string name="stats_tx_rate">↑ avg %s</string>
     <string name="stats_rx_rate">↓ avg %s</string>

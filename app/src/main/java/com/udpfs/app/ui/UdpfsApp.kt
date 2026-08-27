@@ -38,10 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.udpfs.app.AppViewModel
-import com.udpfs.app.AppViewModelFactory
 import com.udpfs.app.R
-import com.udpfs.app.core.ServerRepository
-import com.udpfs.app.core.Settings
+import com.udpfs.app.UdpfsApplication
 import com.udpfs.app.core.forcesReadOnly
 import com.udpfs.app.ui.screens.ConfigScreen
 import com.udpfs.app.ui.screens.DEFAULT_START
@@ -58,7 +56,8 @@ enum class BrowseTarget { FsRoot, BlockDevice }
 @Composable
 fun UdpfsApp() {
     val context = LocalContext.current
-    val vm: AppViewModel = viewModel(factory = AppViewModelFactory(Settings(context.applicationContext)))
+    val app = context.applicationContext as UdpfsApplication
+    val vm: AppViewModel = viewModel { AppViewModel(app.serverRepository, app.settings) }
     val config by vm.config.collectAsStateWithLifecycle()
 
     var screen by rememberSaveable { mutableStateOf(Screen.Server) }
@@ -66,7 +65,7 @@ fun UdpfsApp() {
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
-        ServerRepository.errors.collect { snackbar.showSnackbar(it) }
+        vm.errors.collect { snackbar.showSnackbar(it) }
     }
 
     LaunchedEffect(config.showStats) {

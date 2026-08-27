@@ -1,7 +1,6 @@
 package com.udpfs.app.ui.screens
 
 import android.os.Build
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,11 +19,13 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -35,11 +36,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,7 +52,14 @@ import com.udpfs.app.core.StorageMode
 import com.udpfs.app.core.activeStoragePath
 import com.udpfs.app.core.forcesReadOnly
 import com.udpfs.app.ui.BrowseTarget
-import com.udpfs.app.ui.components.focusHighlight
+import com.udpfs.app.ui.components.SettingRow
+import com.udpfs.app.ui.components.SupportingText
+import com.udpfs.app.ui.components.focusedClickable
+
+private enum class EditTarget {
+    Port,
+    BindIP,
+}
 
 @Composable
 fun ConfigScreen(
@@ -66,147 +74,7 @@ fun ConfigScreen(
 
     val forcedReadOnly = forcesReadOnly(Build.VERSION.SDK_INT, config.activeStoragePath, context.packageName)
 
-    var editing by remember { mutableStateOf<Int?>(null) }
-
-    val storageSection: @Composable () -> Unit = {
-        Section(stringResource(R.string.config_section_storage)) {
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(stringResource(R.string.config_share), style = MaterialTheme.typography.bodyLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = config.storageMode == StorageMode.Folder,
-                        enabled = enabled,
-                        onClick = { vm.updateConfig { it.copy(storageMode = StorageMode.Folder) } },
-                        label = { Text(stringResource(R.string.config_mode_folder)) },
-                    )
-                    FilterChip(
-                        selected = config.storageMode == StorageMode.DiskImage,
-                        enabled = enabled,
-                        onClick = { vm.updateConfig { it.copy(storageMode = StorageMode.DiskImage) } },
-                        label = { Text(stringResource(R.string.config_mode_image)) },
-                    )
-                }
-            }
-            if (config.storageMode == StorageMode.Folder) {
-                PathRow(
-                    icon = Icons.Filled.Folder,
-                    title = stringResource(R.string.config_fs_root),
-                    value = config.fsRoot.ifBlank { stringResource(R.string.config_not_set) },
-                    enabled = enabled,
-                    onClick = { onBrowse(BrowseTarget.FsRoot) },
-                )
-            } else {
-                PathRow(
-                    icon = Icons.Filled.Storage,
-                    title = stringResource(R.string.config_block_device),
-                    value = config.blockDevice.ifBlank { stringResource(R.string.config_not_set) },
-                    enabled = enabled,
-                    onClick = { onBrowse(BrowseTarget.BlockDevice) },
-                )
-            }
-        }
-    }
-
-    val serverSection: @Composable () -> Unit = {
-        Section(stringResource(R.string.config_section_server)) {
-            StepperRow(
-                title = stringResource(R.string.config_port),
-                value = config.port,
-                step = 1,
-                min = 1,
-                max = 65535,
-                enabled = enabled,
-                onValueClick = { editing = EDIT_PORT },
-                onChange = { v -> vm.updateConfig { it.copy(port = v) } },
-            )
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(stringResource(R.string.config_sector_size), style = MaterialTheme.typography.bodyLarge)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ServerConfig.SECTOR_SIZES.forEach { size ->
-                        FilterChip(
-                            selected = config.sectorSize == size,
-                            enabled = enabled,
-                            onClick = { vm.updateConfig { it.copy(sectorSize = size) } },
-                            label = { Text(size.toString()) },
-                        )
-                    }
-                }
-            }
-            StepperRow(
-                title = stringResource(R.string.config_peer_timeout),
-                value = config.peerTimeoutMinutes,
-                step = 5,
-                min = 1,
-                max = 1440,
-                enabled = enabled,
-                suffix = stringResource(R.string.config_unit_minutes),
-                onChange = { v -> vm.updateConfig { it.copy(peerTimeoutMinutes = v) } },
-            )
-            PathRow(
-                icon = Icons.Filled.Info,
-                title = stringResource(R.string.config_bind_ip),
-                value = config.bindIP.ifBlank { stringResource(R.string.config_bind_auto) },
-                enabled = enabled,
-                onClick = { editing = EDIT_BIND_IP },
-            )
-        }
-    }
-
-    val featuresSection: @Composable () -> Unit = {
-        Section(stringResource(R.string.config_section_features)) {
-            SwitchRow(
-                title = stringResource(R.string.config_read_only),
-                checked = config.readOnly || forcedReadOnly,
-                enabled = enabled && !forcedReadOnly,
-                onChange = { v -> vm.updateConfig { it.copy(readOnly = v) } },
-            )
-            if (forcedReadOnly) {
-                Text(
-                    stringResource(R.string.config_readonly_forced),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            SwitchRow(
-                title = stringResource(R.string.config_compression),
-                checked = config.enableCompression,
-                enabled = enabled,
-                onChange = { v -> vm.updateConfig { it.copy(enableCompression = v) } },
-            )
-            if (config.enableCompression) {
-                StepperRow(
-                    title = stringResource(R.string.config_cache),
-                    value = config.compressionCacheSize,
-                    step = 1,
-                    min = 1,
-                    max = 4096,
-                    enabled = enabled,
-                    suffix = stringResource(R.string.config_unit_blocks),
-                    onChange = { v -> vm.updateConfig { it.copy(compressionCacheSize = v) } },
-                )
-            }
-            SwitchRow(
-                title = stringResource(R.string.config_show_stats),
-                checked = config.showStats,
-                enabled = true,
-                onChange = { v -> vm.updateConfig { it.copy(showStats = v) } },
-            )
-            SwitchRow(
-                title = stringResource(R.string.config_auto_start),
-                checked = config.autoStart,
-                enabled = enabled,
-                onChange = { v -> vm.updateConfig { it.copy(autoStart = v) } },
-            )
-        }
-    }
+    var editing by remember { mutableStateOf<EditTarget?>(null) }
 
     Column(
         modifier =
@@ -226,11 +94,7 @@ fun ConfigScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
-                Text(
-                    stringResource(R.string.config_locked),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                SupportingText(stringResource(R.string.config_locked))
             }
         }
 
@@ -241,36 +105,52 @@ fun ConfigScreen(
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(Modifier.weight(1f)) {
-                    storageSection()
-                    serverSection()
+                    StorageSection(vm, config, enabled, onBrowse)
+                    ServerSection(
+                        vm,
+                        config,
+                        enabled,
+                        onEditPort = { editing = EditTarget.Port },
+                        onEditBindIP = { editing = EditTarget.BindIP },
+                    )
                 }
                 Column(Modifier.weight(1f)) {
-                    featuresSection()
+                    FeaturesSection(vm, config, enabled, forcedReadOnly)
                 }
             }
         } else {
-            storageSection()
-            serverSection()
-            featuresSection()
+            StorageSection(vm, config, enabled, onBrowse)
+            ServerSection(
+                vm,
+                config,
+                enabled,
+                onEditPort = { editing = EditTarget.Port },
+                onEditBindIP = { editing = EditTarget.BindIP },
+            )
+            FeaturesSection(vm, config, enabled, forcedReadOnly)
         }
     }
 
     editing?.let { edit ->
         when (edit) {
-            EDIT_PORT -> {
-                NumberDialog(
+            EditTarget.Port -> {
+                InputDialog(
                     title = stringResource(R.string.config_port),
                     initial = config.port.toString(),
+                    keyboardType = KeyboardType.Number,
+                    transform = { it.filter(Char::isDigit).take(5) },
                     onDismiss = { editing = null },
                     onConfirm = { value ->
-                        vm.updateConfig { it.copy(port = value.coerceIn(1, 65535)) }
-                        editing = null
+                        value.toIntOrNull()?.let { v ->
+                            vm.updateConfig { it.copy(port = v.coerceIn(1, 65535)) }
+                            editing = null
+                        }
                     },
                 )
             }
 
-            EDIT_BIND_IP -> {
-                TextDialog(
+            EditTarget.BindIP -> {
+                InputDialog(
                     title = stringResource(R.string.config_bind_ip),
                     initial = config.bindIP,
                     placeholder = stringResource(R.string.config_bind_auto),
@@ -285,8 +165,155 @@ fun ConfigScreen(
     }
 }
 
-private const val EDIT_PORT = 1
-private const val EDIT_BIND_IP = 2
+@Composable
+private fun StorageSection(
+    vm: AppViewModel,
+    config: ServerConfig,
+    enabled: Boolean,
+    onBrowse: (BrowseTarget) -> Unit,
+) {
+    Section(stringResource(R.string.config_section_storage)) {
+        SettingRow(stringResource(R.string.config_share)) {
+            SingleChoiceSegmentedButtonRow {
+                StorageMode.entries.forEachIndexed { index, mode ->
+                    SegmentedButton(
+                        selected = config.storageMode == mode,
+                        onClick = { vm.updateConfig { it.copy(storageMode = mode) } },
+                        enabled = enabled,
+                        shape = SegmentedButtonDefaults.itemShape(index, StorageMode.entries.size),
+                        label = { Text(modeLabel(mode)) },
+                    )
+                }
+            }
+        }
+        if (config.storageMode == StorageMode.Folder) {
+            PathRow(
+                icon = Icons.Filled.Folder,
+                title = stringResource(R.string.config_fs_root),
+                value = config.fsRoot.ifBlank { stringResource(R.string.config_not_set) },
+                enabled = enabled,
+                onClick = { onBrowse(BrowseTarget.FsRoot) },
+            )
+        } else {
+            PathRow(
+                icon = Icons.Filled.Storage,
+                title = stringResource(R.string.config_block_device),
+                value = config.blockDevice.ifBlank { stringResource(R.string.config_not_set) },
+                enabled = enabled,
+                onClick = { onBrowse(BrowseTarget.BlockDevice) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun modeLabel(mode: StorageMode): String =
+    when (mode) {
+        StorageMode.Folder -> stringResource(R.string.config_mode_folder)
+        StorageMode.DiskImage -> stringResource(R.string.config_mode_image)
+    }
+
+@Composable
+private fun ServerSection(
+    vm: AppViewModel,
+    config: ServerConfig,
+    enabled: Boolean,
+    onEditPort: () -> Unit,
+    onEditBindIP: () -> Unit,
+) {
+    Section(stringResource(R.string.config_section_server)) {
+        StepperRow(
+            title = stringResource(R.string.config_port),
+            value = config.port,
+            step = 1,
+            min = 1,
+            max = 65535,
+            enabled = enabled,
+            onValueClick = onEditPort,
+            onChange = { v -> vm.updateConfig { it.copy(port = v) } },
+        )
+        SettingRow(stringResource(R.string.config_sector_size)) {
+            SingleChoiceSegmentedButtonRow {
+                ServerConfig.SECTOR_SIZES.forEachIndexed { index, size ->
+                    SegmentedButton(
+                        selected = config.sectorSize == size,
+                        onClick = { vm.updateConfig { it.copy(sectorSize = size) } },
+                        enabled = enabled,
+                        shape = SegmentedButtonDefaults.itemShape(index, ServerConfig.SECTOR_SIZES.size),
+                        label = { Text(size.toString()) },
+                    )
+                }
+            }
+        }
+        StepperRow(
+            title = stringResource(R.string.config_peer_timeout),
+            value = config.peerTimeoutMinutes,
+            step = 5,
+            min = 1,
+            max = 1440,
+            enabled = enabled,
+            suffix = stringResource(R.string.config_unit_minutes),
+            onChange = { v -> vm.updateConfig { it.copy(peerTimeoutMinutes = v) } },
+        )
+        PathRow(
+            icon = Icons.Filled.Info,
+            title = stringResource(R.string.config_bind_ip),
+            value = config.bindIP.ifBlank { stringResource(R.string.config_bind_auto) },
+            enabled = enabled,
+            onClick = onEditBindIP,
+        )
+    }
+}
+
+@Composable
+private fun FeaturesSection(
+    vm: AppViewModel,
+    config: ServerConfig,
+    enabled: Boolean,
+    forcedReadOnly: Boolean,
+) {
+    Section(stringResource(R.string.config_section_features)) {
+        SwitchRow(
+            title = stringResource(R.string.config_read_only),
+            checked = config.readOnly || forcedReadOnly,
+            enabled = enabled && !forcedReadOnly,
+            onChange = { v -> vm.updateConfig { it.copy(readOnly = v) } },
+        )
+        if (forcedReadOnly) {
+            SupportingText(stringResource(R.string.config_readonly_forced))
+        }
+        SwitchRow(
+            title = stringResource(R.string.config_compression),
+            checked = config.enableCompression,
+            enabled = enabled,
+            onChange = { v -> vm.updateConfig { it.copy(enableCompression = v) } },
+        )
+        if (config.enableCompression) {
+            StepperRow(
+                title = stringResource(R.string.config_cache),
+                value = config.compressionCacheSize,
+                step = 1,
+                min = 1,
+                max = 4096,
+                enabled = enabled,
+                suffix = stringResource(R.string.config_unit_blocks),
+                onChange = { v -> vm.updateConfig { it.copy(compressionCacheSize = v) } },
+            )
+        }
+        SwitchRow(
+            title = stringResource(R.string.config_show_stats),
+            checked = config.showStats,
+            enabled = true,
+            onChange = { v -> vm.updateConfig { it.copy(showStats = v) } },
+        )
+        SwitchRow(
+            title = stringResource(R.string.config_auto_start),
+            checked = config.autoStart,
+            enabled = enabled,
+            onChange = { v -> vm.updateConfig { it.copy(autoStart = v) } },
+        )
+    }
+}
 
 @Composable
 private fun Section(
@@ -314,9 +341,7 @@ private fun PathRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .focusHighlight(MaterialTheme.shapes.medium)
-            .clip(MaterialTheme.shapes.medium)
-            .clickable(enabled = enabled, onClick = onClick)
+            .focusedClickable(MaterialTheme.shapes.medium, enabled, onClick)
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -361,16 +386,14 @@ private fun StepperRow(
         Text(
             "$value$suffix",
             style = MaterialTheme.typography.bodyLarge,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
             modifier =
                 Modifier
                     .width(92.dp)
                     .then(
                         if (onValueClick != null && enabled) {
                             Modifier
-                                .focusHighlight(MaterialTheme.shapes.small)
-                                .clip(MaterialTheme.shapes.small)
-                                .clickable(onClick = onValueClick)
+                                .focusedClickable(MaterialTheme.shapes.small) { onValueClick() }
                                 .padding(vertical = 4.dp)
                         } else {
                             Modifier
@@ -400,10 +423,12 @@ private fun SwitchRow(
 }
 
 @Composable
-private fun TextDialog(
+private fun InputDialog(
     title: String,
     initial: String,
-    placeholder: String,
+    placeholder: String? = null,
+    keyboardType: KeyboardType = KeyboardType.Uri,
+    transform: (String) -> String = { it },
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
@@ -414,44 +439,14 @@ private fun TextDialog(
         text = {
             OutlinedTextField(
                 value = text,
-                onValueChange = { text = it },
+                onValueChange = { text = transform(it) },
                 singleLine = true,
-                placeholder = { Text(placeholder) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                placeholder = placeholder?.let { { Text(it) } },
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             )
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(text) }) { Text(stringResource(R.string.action_save)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-        },
-    )
-}
-
-@Composable
-private fun NumberDialog(
-    title: String,
-    initial: String,
-    onDismiss: () -> Unit,
-    onConfirm: (Int) -> Unit,
-) {
-    var text by remember { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { value -> text = value.filter(Char::isDigit).take(5) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { text.toIntOrNull()?.let(onConfirm) },
-            ) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }

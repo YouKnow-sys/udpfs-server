@@ -33,7 +33,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -42,18 +41,20 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.udpfs.app.R
 import com.udpfs.app.core.Formatters
 import com.udpfs.app.core.volumeRootPath
 import com.udpfs.app.ui.BrowseMode
-import com.udpfs.app.ui.components.focusHighlight
+import com.udpfs.app.ui.components.EmptyState
+import com.udpfs.app.ui.components.focusedClickable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -105,15 +106,7 @@ fun FileBrowserScreen(
     val atVolumes = dirPath in VOLUME_PARENTS
 
     var resumeKey by remember { mutableStateOf(0) }
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer =
-            LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME) resumeKey++
-            }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumeKey++ }
 
     val volumes =
         remember(context, resumeKey) {
@@ -309,7 +302,9 @@ private fun Breadcrumb(
             if (index > 0) {
                 Text(
                     "›",
-                    Modifier.padding(horizontal = 6.dp),
+                    Modifier
+                        .clearAndSetSemantics { }
+                        .padding(horizontal = 6.dp),
                     color = MaterialTheme.colorScheme.outline,
                 )
             }
@@ -318,7 +313,7 @@ private fun Breadcrumb(
                 modifier =
                     Modifier
                         .clickable(enabled = index < crumbs.lastIndex) { onNavigate(path) }
-                        .padding(vertical = 2.dp),
+                        .padding(vertical = 10.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color =
                     if (index == crumbs.lastIndex) {
@@ -334,7 +329,7 @@ private fun Breadcrumb(
 
 @Composable
 private fun BrowserRow(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     name: String,
     detail: String?,
     onClick: () -> Unit,
@@ -342,8 +337,7 @@ private fun BrowserRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .focusHighlight(MaterialTheme.shapes.medium)
-            .clickable(onClick = onClick)
+            .focusedClickable(MaterialTheme.shapes.medium, onClick = onClick)
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),

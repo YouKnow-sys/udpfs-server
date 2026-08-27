@@ -2,6 +2,7 @@ package com.udpfs.app.core
 
 import android.content.Context
 import androidx.annotation.StringRes
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -46,23 +47,19 @@ enum class ConfigIssueReason(
     CompressionCache(R.string.config_issue_compression_cache),
 }
 
-data class ConfigIssue(
-    val reason: ConfigIssueReason,
-)
-
 val ServerConfig.activeStoragePath: String
     get() = if (storageMode == StorageMode.Folder) fsRoot else blockDevice
 
-fun ServerConfig.validate(): List<ConfigIssue> =
+fun ServerConfig.validate(): List<ConfigIssueReason> =
     buildList {
         when (storageMode) {
-            StorageMode.Folder -> if (fsRoot.isBlank()) add(ConfigIssue(ConfigIssueReason.MissingFolder))
-            StorageMode.DiskImage -> if (blockDevice.isBlank()) add(ConfigIssue(ConfigIssueReason.MissingBlockDevice))
+            StorageMode.Folder -> if (fsRoot.isBlank()) add(ConfigIssueReason.MissingFolder)
+            StorageMode.DiskImage -> if (blockDevice.isBlank()) add(ConfigIssueReason.MissingBlockDevice)
         }
-        if (port !in 1..65535) add(ConfigIssue(ConfigIssueReason.PortRange))
-        if (sectorSize !in ServerConfig.SECTOR_SIZES) add(ConfigIssue(ConfigIssueReason.SectorSize))
-        if (peerTimeoutMinutes !in 1..1440) add(ConfigIssue(ConfigIssueReason.PeerTimeoutRange))
-        if (enableCompression && compressionCacheSize < 1) add(ConfigIssue(ConfigIssueReason.CompressionCache))
+        if (port !in 1..65535) add(ConfigIssueReason.PortRange)
+        if (sectorSize !in ServerConfig.SECTOR_SIZES) add(ConfigIssueReason.SectorSize)
+        if (peerTimeoutMinutes !in 1..1440) add(ConfigIssueReason.PeerTimeoutRange)
+        if (enableCompression && compressionCacheSize < 1) add(ConfigIssueReason.CompressionCache)
     }
 
 private object Keys {
@@ -82,7 +79,7 @@ private object Keys {
 
 private val DEFAULTS = ServerConfig()
 
-private fun Preferences.toServerConfig() =
+internal fun Preferences.toServerConfig() =
     ServerConfig(
         storageMode = this[Keys.storageMode].toStorageMode(),
         fsRoot = this[Keys.fsRoot] ?: DEFAULTS.fsRoot,
@@ -105,21 +102,26 @@ class Settings(
 
     suspend fun update(transform: (ServerConfig) -> ServerConfig) {
         context.dataStore.edit { p ->
-            val c = transform(p.toServerConfig())
-            p[Keys.storageMode] = c.storageMode.name
-            p[Keys.fsRoot] = c.fsRoot
-            p[Keys.blockDevice] = c.blockDevice
-            p[Keys.bindIP] = c.bindIP
-            p[Keys.port] = c.port
-            p[Keys.sectorSize] = c.sectorSize
-            p[Keys.readOnly] = c.readOnly
-            p[Keys.enableCompression] = c.enableCompression
-            p[Keys.compressionCacheSize] = c.compressionCacheSize
-            p[Keys.peerTimeoutMinutes] = c.peerTimeoutMinutes
-            p[Keys.showStats] = c.showStats
-            p[Keys.autoStart] = c.autoStart
+            val old = p.toServerConfig()
+            val c = transform(old)
+            if (c != old) c.writeTo(p)
         }
     }
+}
+
+internal fun ServerConfig.writeTo(p: MutablePreferences) {
+    p[Keys.storageMode] = storageMode.name
+    p[Keys.fsRoot] = fsRoot
+    p[Keys.blockDevice] = blockDevice
+    p[Keys.bindIP] = bindIP
+    p[Keys.port] = port
+    p[Keys.sectorSize] = sectorSize
+    p[Keys.readOnly] = readOnly
+    p[Keys.enableCompression] = enableCompression
+    p[Keys.compressionCacheSize] = compressionCacheSize
+    p[Keys.peerTimeoutMinutes] = peerTimeoutMinutes
+    p[Keys.showStats] = showStats
+    p[Keys.autoStart] = autoStart
 }
 
 private fun String?.toStorageMode(): StorageMode = if (this == StorageMode.DiskImage.name) StorageMode.DiskImage else StorageMode.Folder

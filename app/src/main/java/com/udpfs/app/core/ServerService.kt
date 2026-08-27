@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.udpfs.app.MainActivity
 import com.udpfs.app.R
+import com.udpfs.app.UdpfsApplication
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,12 +22,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class ServerService : Service() {
+    private lateinit var repo: ServerRepository
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var lastStartId = 0
     private var observing = false
     private lateinit var notifications: NotificationManager
 
+    private var lastIP = ""
+
     override fun onCreate() {
+        repo = (application as UdpfsApplication).serverRepository
         notifications = getSystemService(NotificationManager::class.java)
         notifications.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, getString(R.string.channel_name), NotificationManager.IMPORTANCE_LOW),
@@ -39,7 +45,7 @@ class ServerService : Service() {
         startId: Int,
     ): Int {
         lastStartId = startId
-        val status = ServerRepository.status.value
+        val status = repo.status.value
         return when (intent?.action ?: ACTION_START) {
             ACTION_START -> {
                 val initial =
@@ -51,16 +57,16 @@ class ServerService : Service() {
                 ServiceCompat.startForeground(
                     this,
                     NOTIFICATION_ID,
-                    buildNotification(initial, ServerRepository.localIP()),
+                    buildNotification(initial, lastIP),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
                 )
-                if (status is ServerStatus.Idle) ServerRepository.start()
+                if (status is ServerStatus.Idle) repo.start()
                 observeStatus()
                 START_STICKY
             }
 
             ACTION_STOP -> {
-                if (status is ServerStatus.Idle) stopSelfQuietly() else ServerRepository.stop()
+                if (status is ServerStatus.Idle) stopSelfQuietly() else repo.stop()
                 START_NOT_STICKY
             }
 
@@ -74,11 +80,12 @@ class ServerService : Service() {
         if (observing) return
         observing = true
         scope.launch {
-            ServerRepository.status.collect { st ->
+            repo.status.collect { st ->
                 if (st is ServerStatus.Idle) {
                     stopSelfQuietly()
                 } else {
-                    val ip = withContext(Dispatchers.IO) { ServerRepository.localIP() }
+                    val ip = withContext(Dispatchers.IO) { repo.localIP() }
+                    if (ip.isNotEmpty()) lastIP = ip
                     notifications.notify(NOTIFICATION_ID, buildNotification(st, ip))
                 }
             }
@@ -120,7 +127,7 @@ class ServerService : Service() {
                 is ServerStatus.Running -> {
                     getString(
                         R.string.notif_running,
-                        "$ip:${ServerRepository.activeConfig().port}",
+                        "$ip:${repo.activeConfig().port}",
                     )
                 }
 

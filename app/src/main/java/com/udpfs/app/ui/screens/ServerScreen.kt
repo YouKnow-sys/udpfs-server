@@ -1,7 +1,9 @@
 package com.udpfs.app.ui.screens
 
 import android.Manifest
+import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -47,20 +49,20 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.udpfs.app.AppViewModel
 import com.udpfs.app.R
+import com.udpfs.app.UdpfsApplication
 import com.udpfs.app.core.Formatters
 import com.udpfs.app.core.MountSnapshot
 import com.udpfs.app.core.Permissions
 import com.udpfs.app.core.ServerConfig
-import com.udpfs.app.core.ServerRepository
 import com.udpfs.app.core.ServerService
 import com.udpfs.app.core.ServerStatus
 import com.udpfs.app.core.StorageMode
 import com.udpfs.app.ui.components.InfoRow
+import com.udpfs.app.ui.components.SupportingText
 import com.udpfs.app.ui.components.focusRing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -72,6 +74,7 @@ fun ServerScreen(
     isTv: Boolean = false,
 ) {
     val context = LocalContext.current
+    val repo = (context.applicationContext as UdpfsApplication).serverRepository
     val status by vm.status.collectAsStateWithLifecycle()
     val config by vm.config.collectAsStateWithLifecycle()
     val mount by vm.mount.collectAsStateWithLifecycle()
@@ -80,20 +83,12 @@ fun ServerScreen(
     var ip by remember { mutableStateOf("") }
     val running = status is ServerStatus.Running
     LaunchedEffect(running) {
-        ip = withContext(Dispatchers.IO) { ServerRepository.localIP() }
+        ip = withContext(Dispatchers.IO) { repo.localIP() }
     }
     val scope = rememberCoroutineScope()
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer =
-            LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_RESUME) {
-                    storageGranted = Permissions.hasStorageAccess(context)
-                    scope.launch { ip = withContext(Dispatchers.IO) { ServerRepository.localIP() } }
-                }
-            }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        storageGranted = Permissions.hasStorageAccess(context)
+        scope.launch { ip = withContext(Dispatchers.IO) { repo.localIP() } }
     }
 
     val requestStoragePerms =
@@ -188,8 +183,8 @@ fun ServerScreen(
 }
 
 private fun requestStorage(
-    context: android.content.Context,
-    launcher: androidx.activity.result.ActivityResultLauncher<Array<String>>,
+    context: Context,
+    launcher: ActivityResultLauncher<Array<String>>,
 ) {
     val legacy = Permissions.legacyStoragePermissions()
     if (legacy != null) launcher.launch(legacy) else context.startActivity(Permissions.storageSettingsIntent(context))
@@ -300,11 +295,7 @@ private fun ConnectCard(
                 style = if (startAligned) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.headlineMedium,
                 fontFamily = FontFamily.Monospace,
             )
-            Text(
-                stringResource(R.string.connect_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            SupportingText(stringResource(R.string.connect_hint))
         }
     }
 }
@@ -324,11 +315,7 @@ private fun StorageGate(onRequest: () -> Unit) {
             )
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.storage_title), style = MaterialTheme.typography.titleSmall)
-                Text(
-                    stringResource(R.string.storage_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                SupportingText(stringResource(R.string.storage_hint))
             }
             Button(onClick = onRequest) { Text(stringResource(R.string.storage_grant)) }
         }

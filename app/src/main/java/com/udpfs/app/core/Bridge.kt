@@ -2,9 +2,7 @@ package com.udpfs.app.core
 
 import com.udpfs.udpfsbridge.Config
 
-data class PeerSnapshot(
-    val addr: String,
-    val lastSeenUnix: Long,
+data class TrafficCounters(
     val bytesTx: Long,
     val bytesRx: Long,
     val avgTxThroughput: Double,
@@ -22,25 +20,36 @@ data class PeerSnapshot(
     val resetCount: Long,
 )
 
+private val EMPTY_COUNTERS =
+    TrafficCounters(
+        bytesTx = 0,
+        bytesRx = 0,
+        avgTxThroughput = 0.0,
+        avgRxThroughput = 0.0,
+        totalOps = 0,
+        errors = 0,
+        reads = 0,
+        writes = 0,
+        packetsTx = 0,
+        packetsRx = 0,
+        retransmits = 0,
+        nackCount = 0,
+        outOfOrder = 0,
+        peerNackCount = 0,
+        resetCount = 0,
+    )
+
+data class PeerSnapshot(
+    val addr: String,
+    val lastSeenUnix: Long,
+    val counters: TrafficCounters,
+)
+
 data class StatsSnapshot(
     val running: Boolean = false,
     val uptimeSeconds: Long = 0,
     val peerCount: Int = 0,
-    val bytesTx: Long = 0,
-    val bytesRx: Long = 0,
-    val avgTxThroughput: Double = 0.0,
-    val avgRxThroughput: Double = 0.0,
-    val totalOps: Long = 0,
-    val errors: Long = 0,
-    val reads: Long = 0,
-    val writes: Long = 0,
-    val packetsTx: Long = 0,
-    val packetsRx: Long = 0,
-    val retransmits: Long = 0,
-    val nackCount: Long = 0,
-    val outOfOrder: Long = 0,
-    val peerNackCount: Long = 0,
-    val resetCount: Long = 0,
+    val counters: TrafficCounters = EMPTY_COUNTERS,
     val peers: List<PeerSnapshot> = emptyList(),
 )
 
@@ -61,10 +70,13 @@ data class LogLine(
     val message: String,
 )
 
+fun ServerConfig.effectiveBridgePaths(): Pair<String, String> = if (storageMode == StorageMode.Folder) fsRoot to "" else "" to blockDevice
+
 fun ServerConfig.toBridgeConfig(): Config {
     val c = Config()
-    c.setFSRoot(if (storageMode == StorageMode.Folder) fsRoot else "")
-    c.setBlockDevicePath(if (storageMode == StorageMode.DiskImage) blockDevice else "")
+    val (fsRoot, blockDevice) = effectiveBridgePaths()
+    c.setFSRoot(fsRoot)
+    c.setBlockDevicePath(blockDevice)
     c.setBindIP(bindIP)
     c.setPort(port.toLong())
     c.setSectorSize(sectorSize.toLong())
@@ -75,11 +87,8 @@ fun ServerConfig.toBridgeConfig(): Config {
     return c
 }
 
-internal fun com.udpfs.udpfsbridge.Stats.toSnapshot(peers: List<PeerSnapshot> = emptyList()) =
-    StatsSnapshot(
-        running = running,
-        uptimeSeconds = uptimeSeconds,
-        peerCount = peerCount.toInt(),
+private fun com.udpfs.udpfsbridge.Stats.toCounters() =
+    TrafficCounters(
         bytesTx = bytesTx,
         bytesRx = bytesRx,
         avgTxThroughput = avgTxThroughput,
@@ -95,6 +104,33 @@ internal fun com.udpfs.udpfsbridge.Stats.toSnapshot(peers: List<PeerSnapshot> = 
         outOfOrder = outOfOrder,
         peerNackCount = peerNackCount,
         resetCount = resetCount,
+    )
+
+private fun com.udpfs.udpfsbridge.PeerStats.toCounters() =
+    TrafficCounters(
+        bytesTx = bytesTx,
+        bytesRx = bytesRx,
+        avgTxThroughput = avgTxThroughput,
+        avgRxThroughput = avgRxThroughput,
+        totalOps = totalOps,
+        errors = errors,
+        reads = reads,
+        writes = writes,
+        packetsTx = packetsTx,
+        packetsRx = packetsRx,
+        retransmits = retransmits,
+        nackCount = nackCount,
+        outOfOrder = outOfOrder,
+        peerNackCount = peerNackCount,
+        resetCount = resetCount,
+    )
+
+internal fun com.udpfs.udpfsbridge.Stats.toSnapshot(peers: List<PeerSnapshot> = emptyList()) =
+    StatsSnapshot(
+        running = running,
+        uptimeSeconds = uptimeSeconds,
+        peerCount = peerCount.toInt(),
+        counters = toCounters(),
         peers = peers,
     )
 
@@ -102,21 +138,7 @@ internal fun com.udpfs.udpfsbridge.PeerStats.toSnapshot() =
     PeerSnapshot(
         addr = addr.orEmpty(),
         lastSeenUnix = lastSeenUnix,
-        bytesTx = bytesTx,
-        bytesRx = bytesRx,
-        avgTxThroughput = avgTxThroughput,
-        avgRxThroughput = avgRxThroughput,
-        totalOps = totalOps,
-        errors = errors,
-        reads = reads,
-        writes = writes,
-        packetsTx = packetsTx,
-        packetsRx = packetsRx,
-        retransmits = retransmits,
-        nackCount = nackCount,
-        outOfOrder = outOfOrder,
-        peerNackCount = peerNackCount,
-        resetCount = resetCount,
+        counters = toCounters(),
     )
 
 internal fun com.udpfs.udpfsbridge.MountInfo.toSnapshot(compressionFormats: List<String> = emptyList()) =

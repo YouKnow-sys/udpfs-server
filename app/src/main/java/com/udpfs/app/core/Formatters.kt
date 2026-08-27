@@ -29,8 +29,11 @@ object Formatters {
         }
     }
 
-    fun ago(unixSeconds: Long): String {
-        val delta = System.currentTimeMillis() / 1000 - unixSeconds
+    fun ago(
+        unixSeconds: Long,
+        nowMillis: Long = System.currentTimeMillis(),
+    ): String {
+        val delta = nowMillis / 1000 - unixSeconds
         return when {
             delta < 5 -> "now"
             delta < 60 -> "${delta}s ago"

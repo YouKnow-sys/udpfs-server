@@ -26,11 +26,11 @@ class ServerConfigValidateTest {
     fun `blank storage paths are reported per mode`() {
         assertEquals(
             listOf(ConfigIssueReason.MissingFolder),
-            ServerConfig().validate().map { it.reason },
+            ServerConfig().validate(),
         )
         assertEquals(
             listOf(ConfigIssueReason.MissingBlockDevice),
-            ServerConfig(storageMode = StorageMode.DiskImage).validate().map { it.reason },
+            ServerConfig(storageMode = StorageMode.DiskImage).validate(),
         )
     }
 
@@ -38,11 +38,11 @@ class ServerConfigValidateTest {
     fun `port must be inside the valid range`() {
         assertEquals(
             listOf(ConfigIssueReason.PortRange),
-            valid.copy(port = 0).validate().map { it.reason },
+            valid.copy(port = 0).validate(),
         )
         assertEquals(
             listOf(ConfigIssueReason.PortRange),
-            valid.copy(port = 65536).validate().map { it.reason },
+            valid.copy(port = 65536).validate(),
         )
         assertTrue(valid.copy(port = 1).validate().isEmpty())
         assertTrue(valid.copy(port = 65535).validate().isEmpty())
@@ -52,7 +52,7 @@ class ServerConfigValidateTest {
     fun `sector size must be one of the supported sizes`() {
         assertEquals(
             listOf(ConfigIssueReason.SectorSize),
-            valid.copy(sectorSize = 1024).validate().map { it.reason },
+            valid.copy(sectorSize = 1024).validate(),
         )
         ServerConfig.SECTOR_SIZES.forEach { size ->
             assertTrue("sector size $size should be valid", valid.copy(sectorSize = size).validate().isEmpty())
@@ -63,11 +63,11 @@ class ServerConfigValidateTest {
     fun `peer timeout must be between one minute and one day`() {
         assertEquals(
             listOf(ConfigIssueReason.PeerTimeoutRange),
-            valid.copy(peerTimeoutMinutes = 0).validate().map { it.reason },
+            valid.copy(peerTimeoutMinutes = 0).validate(),
         )
         assertEquals(
             listOf(ConfigIssueReason.PeerTimeoutRange),
-            valid.copy(peerTimeoutMinutes = 1441).validate().map { it.reason },
+            valid.copy(peerTimeoutMinutes = 1441).validate(),
         )
         assertTrue(valid.copy(peerTimeoutMinutes = 1).validate().isEmpty())
         assertTrue(valid.copy(peerTimeoutMinutes = 1440).validate().isEmpty())
@@ -77,7 +77,7 @@ class ServerConfigValidateTest {
     fun `compression requires a positive cache size`() {
         assertEquals(
             listOf(ConfigIssueReason.CompressionCache),
-            valid.copy(enableCompression = true, compressionCacheSize = 0).validate().map { it.reason },
+            valid.copy(enableCompression = true, compressionCacheSize = 0).validate(),
         )
         assertTrue(valid.copy(enableCompression = true, compressionCacheSize = 1).validate().isEmpty())
         assertTrue(valid.copy(compressionCacheSize = 0).validate().isEmpty())
@@ -85,7 +85,7 @@ class ServerConfigValidateTest {
 
     @Test
     fun `multiple problems are all reported`() {
-        val issues = ServerConfig(port = 0, sectorSize = 999).validate().map { it.reason }
+        val issues = ServerConfig(port = 0, sectorSize = 999).validate()
         assertEquals(
             listOf(
                 ConfigIssueReason.MissingFolder,

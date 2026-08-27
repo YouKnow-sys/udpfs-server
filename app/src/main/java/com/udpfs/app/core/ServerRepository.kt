@@ -1,9 +1,7 @@
 package com.udpfs.app.core
 
-import android.content.Context
 import android.os.Build
 import android.os.SystemClock
-import com.udpfs.udpfsbridge.Logger
 import com.udpfs.udpfsbridge.Udpfsbridge
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -12,6 +10,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -21,7 +20,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Duration.Companion.ZERO
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -35,20 +37,20 @@ sealed interface ServerStatus {
     data object Stopping : ServerStatus
 }
 
-object ServerRepository {
-    private val controller = Udpfsbridge.newServer()
-
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+class ServerRepository(
+    private val controller: BridgeController,
+    private val configSource: Flow<ServerConfig>,
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+    private val sdkInt: Int = Build.VERSION.SDK_INT,
+    private val packageName: String = "",
+    private val monotonic: () -> Long = { SystemClock.elapsedRealtime() },
+    private val issueText: (ConfigIssueReason) -> String = { it.name },
+) {
     private var pollJob: Job? = null
 
-    @Volatile
-    private var startJob: Job? = null
+    private val bridgeMutex = Mutex()
 
-    @Volatile
-    private var settings: Settings? = null
-
-    @Volatile
-    private var appContext: Context? = null
+    private val startJob = AtomicReference<Job?>(null)
 
     private val _status = MutableStateFlow<ServerStatus>(ServerStatus.Idle)
     val status: StateFlow<ServerStatus> = _status.asStateFlow()
@@ -65,31 +67,16 @@ object ServerRepository {
     private val _logs = MutableStateFlow<List<LogLine>>(emptyList())
     val logs: StateFlow<List<LogLine>> = _logs.asStateFlow()
 
-    val errors = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val errors = MutableSharedFlow<String>(replay = 2, extraBufferCapacity = 8)
 
-    private val logBuffer = ArrayDeque<LogLine>()
-    private val logSeq =
-        java.util.concurrent.atomic
-            .AtomicLong()
+    private val logBuffer = LogRingBuffer(MAX_LOG_LINES)
 
     private val logSignal = Channel<Unit>(capacity = Channel.CONFLATED)
 
-    @Synchronized
-    fun init(context: Context) {
-        if (settings != null) return
-        val appCtx = context.applicationContext
-        val s = Settings(appCtx)
-        appContext = appCtx
-        settings = s
-        controller.setLogger { level, message ->
-            onBridgeLog(level, message)
-        }
+    init {
+        controller.setLogger { level, message -> onBridgeLog(level, message) }
         scope.launch {
-            try {
-                s.config.collect { _config.value = it }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
+            guardCancellations({ configSource.collect { _config.value = it } }) { e ->
                 errors.emit("Failed to load settings: ${e.message ?: e.javaClass.simpleName}")
             }
         }
@@ -103,64 +90,61 @@ object ServerRepository {
             while (true) {
                 logSignal.receive()
                 delay(LOG_FLUSH_MS)
-                synchronized(logBuffer) {
-                    if (logBuffer.isNotEmpty()) _logs.value = logBuffer.toList()
-                }
+                logBuffer.snapshot().takeIf { it.isNotEmpty() }?.let { _logs.value = it }
             }
         }
     }
 
     fun start() {
         if (!_status.compareAndSet(ServerStatus.Idle, ServerStatus.Starting)) return
-        startJob =
+        val job =
             scope.launch {
                 val cfg = awaitConfig()
                 val issues = cfg.validate()
                 if (issues.isNotEmpty()) {
-                    _status.value = ServerStatus.Idle
-                    errors.emit(
-                        issues.joinToString("\n") { issue ->
-                            appContext?.getString(issue.reason.resId) ?: issue.reason.name
-                        },
-                    )
+                    _status.compareAndSet(ServerStatus.Starting, ServerStatus.Idle)
+                    errors.emit(issues.joinToString("\n", transform = issueText))
                     return@launch
                 }
                 val effective =
-                    if (forcesReadOnly(Build.VERSION.SDK_INT, cfg.activeStoragePath, appContext?.packageName.orEmpty())) {
+                    if (forcesReadOnly(sdkInt, cfg.activeStoragePath, packageName)) {
                         cfg.copy(readOnly = true)
                     } else {
                         cfg
                     }
-                try {
-                    withContext(Dispatchers.IO) { controller.start(effective.toBridgeConfig()) }
+                bridgeMutex.withLock {
+                    guardCancellations(
+                        { withContext(Dispatchers.IO) { controller.start(effective) } },
+                    ) { e ->
+                        _status.compareAndSet(ServerStatus.Starting, ServerStatus.Idle)
+                        errors.emit(e.message ?: "Failed to start server")
+                    } ?: return@launch
                     if (!_status.compareAndSet(ServerStatus.Starting, ServerStatus.Running)) return@launch
                     _stats.value = StatsSnapshot(running = true)
-                    _mount.value =
-                        withContext(Dispatchers.IO) {
-                            controller.mountInfo().toSnapshot(controller.compressionFormats().toFormatList())
-                        }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    _status.value = ServerStatus.Idle
-                    errors.emit(e.message ?: "Failed to start server")
+                    _mount.value = withContext(Dispatchers.IO) { controller.mount() }
                 }
             }
+        startJob.set(job)
+        job.invokeOnCompletion { startJob.compareAndSet(job, null) }
     }
 
     fun stop() {
-        if (_status.value !in listOf(ServerStatus.Running, ServerStatus.Starting)) return
-        _status.value = ServerStatus.Stopping
+        val wasStarting = _status.compareAndSet(ServerStatus.Starting, ServerStatus.Stopping)
+        if (!wasStarting && !_status.compareAndSet(ServerStatus.Running, ServerStatus.Stopping)) return
         scope.launch {
             try {
-                startJob?.join()
-                withContext(Dispatchers.IO) { controller.stop() }
+                if (wasStarting) startJob.get()?.join()
+                bridgeMutex.withLock {
+                    withContext(Dispatchers.IO) { controller.stop() }
+                }
             } catch (e: Exception) {
                 errors.emit(e.message ?: "Failed to stop server")
             } finally {
-                _stats.value = StatsSnapshot()
-                _mount.value = MountSnapshot()
-                _status.value = ServerStatus.Idle
+                bridgeMutex.withLock {
+                    _stats.value = StatsSnapshot()
+                    _mount.value = MountSnapshot()
+                    _status.value = ServerStatus.Idle
+                }
             }
         }
     }
@@ -169,32 +153,22 @@ object ServerRepository {
 
     fun activeConfig(): ServerConfig = _config.value
 
-    suspend fun awaitConfig(): ServerConfig = settings?.config?.first() ?: ServerConfig()
+    suspend fun awaitConfig(): ServerConfig = configSource.first()
 
     private fun startPolling() {
         if (pollJob?.isActive == true) return
         pollJob =
             scope.launch {
                 while (isActive) {
-                    val startedAt = SystemClock.elapsedRealtime()
-                    try {
-                        _stats.value =
-                            withContext(Dispatchers.IO) {
-                                val s = controller.stats()
-                                val peers =
-                                    buildList {
-                                        repeat(s.peerCount.toInt()) { i ->
-                                            controller.peer(i.toLong())?.let { add(it.toSnapshot()) }
-                                        }
-                                    }
-                                s.toSnapshot(peers)
-                            }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        errors.emit("Stats update failed: ${e.message ?: e.javaClass.simpleName}")
-                    }
-                    val elapsed = (SystemClock.elapsedRealtime() - startedAt).milliseconds
+                    val startedAt = monotonic()
+                    val snapshot =
+                        guardCancellations(
+                            { withContext(Dispatchers.IO) { controller.stats() } },
+                        ) { e ->
+                            errors.emit("Stats update failed: ${e.message ?: e.javaClass.simpleName}")
+                        }
+                    if (snapshot != null) _stats.value = snapshot
+                    val elapsed = (monotonic() - startedAt).milliseconds
                     delay((POLL_INTERVAL_MS - elapsed).coerceAtLeast(ZERO))
                 }
             }
@@ -209,10 +183,7 @@ object ServerRepository {
         level: String,
         message: String,
     ) {
-        synchronized(logBuffer) {
-            logBuffer.addLast(LogLine(logSeq.incrementAndGet(), System.currentTimeMillis(), level, message))
-            while (logBuffer.size > MAX_LOG_LINES) logBuffer.removeFirst()
-        }
+        logBuffer.append(level, message)
         logSignal.trySend(Unit)
     }
 }
@@ -221,4 +192,15 @@ private const val MAX_LOG_LINES = 200
 private val LOG_FLUSH_MS = 250.milliseconds
 private val POLL_INTERVAL_MS = 1_000.milliseconds
 
-private fun String.toFormatList(): List<String> = split(',').filter { it.isNotBlank() }
+private suspend inline fun <T> guardCancellations(
+    block: () -> T,
+    onError: (Exception) -> Unit,
+): T? =
+    try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        onError(e)
+        null
+    }
