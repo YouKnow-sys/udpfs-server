@@ -1,14 +1,12 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "com.udpfs.app"
-    compileSdk = 34
+
+    compileSdk = 36
     buildToolsVersion = "37.0.0"
 
     defaultConfig {
@@ -23,9 +21,19 @@ android {
         }
     }
 
+    splits {
+        abi {
+            isEnable = providers.gradleProperty("abiSplits").getOrElse("false").toBoolean()
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
@@ -41,38 +49,30 @@ android {
     }
 }
 
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
-    }
-}
-
 dependencies {
     implementation(files("libs/udpfsbridge.aar"))
 
-    implementation(platform("androidx.compose:compose-bom:2024.05.00"))
+    implementation(platform("androidx.compose:compose-bom:2026.06.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
-    implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.activity:activity-compose:1.9.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.4")
-    implementation("androidx.datastore:datastore-preferences:1.1.1")
+    implementation("androidx.core:core-ktx:1.18.0")
+    implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
+
+    testImplementation("junit:junit:4.13.2")
 }
 
-val bridgeSources = fileTree(rootDir.resolve("udpfsdbridge")) {
-    include("*.go", "go.mod", "go.sum")
-}
-val bridgeAar = file("libs/udpfsbridge.aar")
 tasks.register<Exec>("bridgeAar") {
     workingDir = rootDir
     commandLine("make", "aar")
-    inputs.files(bridgeSources)
-    outputs.file(bridgeAar)
-    outputs.upToDateWhen { bridgeAar.exists() }
+    inputs.dir(rootDir.resolve("udpfsdbridge"))
+    outputs.file("libs/udpfsbridge.aar")
 }
 tasks.named("preBuild") { dependsOn("bridgeAar") }

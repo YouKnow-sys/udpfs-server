@@ -1,5 +1,6 @@
 package com.udpfs.app.core
 
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.SupervisorJob
@@ -43,11 +44,8 @@ class ServerService : Service() {
                 } else {
                     status
                 }
-                ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(initial), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-                if (status is ServerStatus.Idle && !ServerRepository.start()) {
-                    stopSelfQuietly()
-                    return START_NOT_STICKY
-                }
+                ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(initial, ServerRepository.localIP()), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+                if (status is ServerStatus.Idle) ServerRepository.start()
                 observeStatus()
                 START_STICKY
             }
@@ -67,7 +65,8 @@ class ServerService : Service() {
                 if (st is ServerStatus.Idle) {
                     stopSelfQuietly()
                 } else {
-                    notifications.notify(NOTIFICATION_ID, buildNotification(st))
+                    val ip = withContext(Dispatchers.IO) { ServerRepository.localIP() }
+                    notifications.notify(NOTIFICATION_ID, buildNotification(st, ip))
                 }
             }
         }
@@ -85,7 +84,7 @@ class ServerService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
-    private fun buildNotification(status: ServerStatus): Notification {
+    private fun buildNotification(status: ServerStatus, ip: String): Notification {
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
@@ -97,7 +96,7 @@ class ServerService : Service() {
         val text = when (status) {
             is ServerStatus.Running -> getString(
                 R.string.notif_running,
-                "${ServerRepository.localIP()}:${ServerRepository.activeConfig().port}",
+                "$ip:${ServerRepository.activeConfig().port}",
             )
             is ServerStatus.Starting -> getString(R.string.notif_starting)
             is ServerStatus.Stopping -> getString(R.string.notif_stopping)

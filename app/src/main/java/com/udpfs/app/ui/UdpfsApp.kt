@@ -74,10 +74,12 @@ fun UdpfsApp() {
     val isTv = LocalConfiguration.current.uiMode and Configuration.UI_MODE_TYPE_MASK ==
         Configuration.UI_MODE_TYPE_TELEVISION
 
-    val destinations = buildList {
-        add(Screen.Server to Icons.Filled.PowerSettingsNew)
-        add(Screen.Config to Icons.Filled.Tune)
-        if (config.showStats) add(Screen.Stats to Icons.Filled.Insights)
+    val destinations = remember(config.showStats) {
+        buildList {
+            add(Screen.Server to Icons.Filled.PowerSettingsNew)
+            add(Screen.Config to Icons.Filled.Tune)
+            if (config.showStats) add(Screen.Stats to Icons.Filled.Insights)
+        }
     }
 
     val browsing = browseTarget != null
@@ -92,7 +94,7 @@ fun UdpfsApp() {
                         NavigationBarItem(
                             selected = screen == dest,
                             onClick = { screen = dest },
-                            icon = { Icon(icon, contentDescription = dest.name) },
+                            icon = { Icon(icon, contentDescription = null) },
                             label = { Text(screenLabel(dest)) },
                         )
                     }
@@ -136,7 +138,7 @@ fun UdpfsApp() {
                                 NavigationRailItem(
                                     selected = screen == dest,
                                     onClick = { screen = dest },
-                                    icon = { Icon(icon, contentDescription = dest.name) },
+                                    icon = { Icon(icon, contentDescription = null) },
                                     label = { Text(screenLabel(dest)) },
                                 )
                             }

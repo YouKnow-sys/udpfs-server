@@ -1,11 +1,12 @@
 package com.udpfs.app.ui.screens
 
-import java.util.Locale
-import java.util.Date
-import java.text.SimpleDateFormat
+import java.time.format.DateTimeFormatter
+import java.time.ZoneId
+import java.time.Instant
 import kotlinx.coroutines.launch
 import com.udpfs.app.ui.components.focusHighlight
 import com.udpfs.app.ui.components.InfoRow
+import com.udpfs.app.core.StatsSnapshot
 import com.udpfs.app.core.PeerSnapshot
 import com.udpfs.app.core.LogLine
 import com.udpfs.app.core.Formatters
@@ -64,33 +65,36 @@ import androidx.compose.foundation.clickable
 fun StatsScreen(vm: AppViewModel, isTv: Boolean = false) {
     val stats by vm.stats.collectAsStateWithLifecycle()
     val logs by vm.logs.collectAsStateWithLifecycle()
-    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.US) }
+    val timeFormat = remember { DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault()) }
     var logExpanded by remember { mutableStateOf(false) }
 
     val sidePadding = if (isTv) 48.dp else 20.dp
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    fun tvScrollModifier(): Modifier = if (!isTv) Modifier else Modifier.onKeyEvent { event ->
-        if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-        val viewport = (listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset).toFloat()
-        val step = viewport * 0.4f
-        when (event.key) {
-            Key.DirectionDown -> {
-                scope.launch { listState.animateScrollBy(step) }
-                true
+    val tvScroll = remember(isTv) {
+        if (!isTv) Modifier
+        else Modifier.onKeyEvent { event ->
+            if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+            val viewport = (listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset).toFloat()
+            val step = viewport * 0.4f
+            when (event.key) {
+                Key.DirectionDown -> {
+                    scope.launch { listState.animateScrollBy(step) }
+                    true
+                }
+                Key.DirectionUp -> {
+                    scope.launch { listState.animateScrollBy(-step) }
+                    true
+                }
+                else -> false
             }
-            Key.DirectionUp -> {
-                scope.launch { listState.animateScrollBy(-step) }
-                true
-            }
-            else -> false
         }
     }
 
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize().then(tvScrollModifier()),
+        modifier = Modifier.fillMaxSize().then(tvScroll),
         contentPadding = PaddingValues(start = sidePadding, end = sidePadding, top = 12.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -103,10 +107,7 @@ fun StatsScreen(vm: AppViewModel, isTv: Boolean = false) {
                             style = MaterialTheme.typography.titleMedium,
                         )
                         Text(
-                            stringResource(
-                                R.string.stats_peers,
-                                String.format(Locale.US, "%d", stats.peerCount),
-                            ),
+                            stringResource(R.string.stats_peers, stats.peerCount.toString()),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.secondary,
                         )
@@ -189,10 +190,11 @@ fun StatsScreen(vm: AppViewModel, isTv: Boolean = false) {
                             modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
                         )
                     } else {
+                        val recentLogs = remember(logs) { logs.takeLast(100).asReversed() }
                         LazyColumn(
                             Modifier.fillMaxWidth().height(220.dp).padding(horizontal = 16.dp).padding(bottom = 12.dp),
                         ) {
-                            items(logs.takeLast(100).asReversed(), key = { it.seq }) { line ->
+                            items(recentLogs, key = { it.seq }) { line ->
                                 LogLineRow(line, timeFormat)
                             }
                         }
@@ -211,7 +213,7 @@ fun StatsScreen(vm: AppViewModel, isTv: Boolean = false) {
 @Composable
 private fun LogDialog(
     logs: List<LogLine>,
-    timeFormat: SimpleDateFormat,
+    timeFormat: DateTimeFormatter,
     onClose: () -> Unit,
 ) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -249,14 +251,14 @@ private fun LogDialog(
 }
 
 @Composable
-private fun LogLineRow(line: LogLine, timeFormat: SimpleDateFormat) {
+private fun LogLineRow(line: LogLine, timeFormat: DateTimeFormatter) {
     val color = when (line.level.uppercase()) {
         "ERROR" -> MaterialTheme.colorScheme.error
         "WARN" -> MaterialTheme.colorScheme.tertiary
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
     Text(
-        "${timeFormat.format(Date(line.timeMillis))}  ${line.message}",
+        "${timeFormat.format(Instant.ofEpochMilli(line.timeMillis))}  ${line.message}",
         style = MaterialTheme.typography.bodySmall,
         fontFamily = FontFamily.Monospace,
         color = color,
@@ -264,7 +266,7 @@ private fun LogLineRow(line: LogLine, timeFormat: SimpleDateFormat) {
 }
 
 @Composable
-private fun TotalsCard(stats: com.udpfs.app.core.StatsSnapshot, modifier: Modifier = Modifier) {
+private fun TotalsCard(stats: StatsSnapshot, modifier: Modifier = Modifier) {
     Card(modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(

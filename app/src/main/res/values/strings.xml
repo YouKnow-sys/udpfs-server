@@ -44,7 +44,7 @@
     <string name="config_fs_root">Filesystem root</string>
     <string name="config_not_set">Not set</string>
     <string name="config_block_device">Disk image</string>
-    <string name="config_no_block_device">None — share the folder</string>
+    <string name="config_no_block_device">None - share the folder</string>
     <string name="config_port">Port</string>
     <string name="config_sector_size">Sector size</string>
     <string name="config_peer_timeout">Peer timeout</string>
@@ -55,6 +55,15 @@
     <string name="config_cache">Decompression cache</string>
     <string name="config_show_stats">Show stats</string>
     <string name="config_auto_start">Start on boot</string>
+    <string name="config_unit_minutes">" min"</string>
+    <string name="config_unit_blocks">" blk"</string>
+
+    <string name="config_issue_missing_folder">Select a folder to share</string>
+    <string name="config_issue_missing_block_device">Select a disk image to share</string>
+    <string name="config_issue_port_range">Port must be between 1 and 65535</string>
+    <string name="config_issue_sector_size">Sector size must be 512, 2048 or 4096</string>
+    <string name="config_issue_peer_timeout_range">Peer timeout must be between 1 and 1440 minutes</string>
+    <string name="config_issue_compression_cache">Compression cache must be at least 1 block</string>
 
     <string name="browser_select_folder">Select %s</string>
     <string name="browser_none">None</string>

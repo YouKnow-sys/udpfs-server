@@ -1,6 +1,6 @@
 package com.udpfs.app
 
-import com.udpfs.app.ui.theme.UdpfsTheme
+import com.udpfs.app.ui.theme.udpfsTheme
 import com.udpfs.app.ui.UdpfsApp
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
@@ -12,7 +12,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            UdpfsTheme {
+            udpfsTheme {
                 UdpfsApp()
             }
         }

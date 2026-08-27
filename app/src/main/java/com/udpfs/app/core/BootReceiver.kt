@@ -10,7 +10,7 @@ import android.content.BroadcastReceiver
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action !in setOf(Intent.ACTION_BOOT_COMPLETED, ACTION_QUICKBOOT)) return
+        if (intent.action !in BOOT_ACTIONS) return
         val result = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -19,6 +19,7 @@ class BootReceiver : BroadcastReceiver() {
                 if (config.autoStart && config.validate().isEmpty()) {
                     ServerService.start(context)
                 }
+            } catch (e: Exception) {
             } finally {
                 result.finish()
             }
@@ -26,6 +27,7 @@ class BootReceiver : BroadcastReceiver() {
     }
 
     private companion object {
+        val BOOT_ACTIONS = setOf(Intent.ACTION_BOOT_COMPLETED, ACTION_QUICKBOOT)
         const val ACTION_QUICKBOOT = "android.intent.action.QUICKBOOT_POWERON"
     }
 }

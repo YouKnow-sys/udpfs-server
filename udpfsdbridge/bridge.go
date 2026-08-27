@@ -19,6 +19,8 @@ type ServerController struct {
 	srv     *server.Server
 	backend *fs.Backend
 	logger  Logger
+
+	lastPeers []server.PeerMetrics
 }
 
 func NewServer() *ServerController {
@@ -100,7 +102,7 @@ func (c *ServerController) Stop() {
 	if srv == nil {
 		return
 	}
-	c.srv, c.backend = nil, nil
+	c.srv, c.backend, c.lastPeers = nil, nil, nil
 	srv.Close()
 	backend.Shutdown()
 }
@@ -115,11 +117,12 @@ func (c *ServerController) Stats() *Stats {
 	}
 
 	m := c.srv.Stats()
+	c.lastPeers = m.Peers
 	out.Running = true
 	out.UptimeSeconds = int64(m.Uptime / time.Second)
 	out.PeerCount = len(m.Peers)
 	for i := range m.Peers {
-		out.accumulate(peerStatsFrom(m.Peers[i]))
+		accumulate(out, peerStatsFrom(m.Peers[i]))
 	}
 	return out
 }
@@ -128,14 +131,10 @@ func (c *ServerController) Peer(i int) *PeerStats {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.srv == nil {
+	if i < 0 || i >= len(c.lastPeers) {
 		return nil
 	}
-	m := c.srv.Stats()
-	if i < 0 || i >= len(m.Peers) {
-		return nil
-	}
-	p := peerStatsFrom(m.Peers[i])
+	p := peerStatsFrom(c.lastPeers[i])
 	return &p
 }
 
@@ -167,7 +166,7 @@ func (c *ServerController) CompressionFormats() string {
 	return strings.Join(c.backend.Stats().CompressionFormats, ",")
 }
 
-func (s *Stats) accumulate(p PeerStats) {
+func accumulate(s *Stats, p PeerStats) {
 	s.BytesTx += p.BytesTx
 	s.BytesRx += p.BytesRx
 	s.AvgTxThroughput += p.AvgTxThroughput

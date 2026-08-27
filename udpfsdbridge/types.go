@@ -1,7 +1,5 @@
 package udpfsbridge
 
-import "github.com/pcm720/udpfsd/udprdma"
-
 type Logger interface {
 	OnLog(level string, message string)
 }
@@ -16,15 +14,6 @@ type Config struct {
 	EnableCompression    bool
 	CompressionCacheSize int
 	PeerTimeoutMinutes   int
-}
-
-func NewDefaultConfig() *Config {
-	return &Config{
-		Port:                 udprdma.UDPFSPort,
-		SectorSize:           512,
-		CompressionCacheSize: 32,
-		PeerTimeoutMinutes:   60,
-	}
 }
 
 type MountInfo struct {

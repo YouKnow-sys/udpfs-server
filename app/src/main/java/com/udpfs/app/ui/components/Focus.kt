@@ -1,38 +1,95 @@
 package com.udpfs.app.ui.components
 
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.composed
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.Modifier
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.Composable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.border
-import androidx.compose.foundation.background
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.Spring
 
-fun Modifier.focusRing(shape: Shape = CircleShape): Modifier = composed {
+private const val FocusStiffness = 2400f
+
+@Composable
+fun Modifier.focusRing(shape: Shape = CircleShape): Modifier {
     var focused by remember { mutableStateOf(false) }
-    val width by animateDpAsState(if (focused) 3.dp else 0.dp, label = "focusBorder")
-    val scale by animateFloatAsState(if (focused) 1.04f else 1f, label = "focusScale")
-    this
+    val spec = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = FocusStiffness)
+    val width by animateDpAsState(
+        targetValue = if (focused) 3.dp else 0.dp,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = FocusStiffness),
+        label = "focusBorder",
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (focused) 1.04f else 1f,
+        animationSpec = spec,
+        label = "focusScale",
+    )
+    val color = MaterialTheme.colorScheme.primary
+    return this
         .onFocusChanged { focused = it.hasFocus }
-        .scale(scale)
-        .border(width, MaterialTheme.colorScheme.primary, shape)
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .drawBehind {
+            if (width <= 0.dp) return@drawBehind
+            val strokeInset = width.roundToPx() / 2
+            if (strokeInset * 2 < size.width && strokeInset * 2 < size.height) {
+                val outline = shape.createOutline(
+                    Size(size.width - strokeInset * 2, size.height - strokeInset * 2),
+                    layoutDirection,
+                    this,
+                )
+                translate(strokeInset.toFloat(), strokeInset.toFloat()) {
+                    drawPath(
+                        outline.asPath(),
+                        color,
+                        style = Stroke(width.roundToPx().toFloat()),
+                    )
+                }
+            }
+        }
 }
 
-fun Modifier.focusHighlight(shape: Shape): Modifier = composed {
+private fun Outline.asPath(): Path = when (this) {
+    is Outline.Generic -> path
+    is Outline.Rounded -> Path().apply { addRoundRect(roundRect) }
+    is Outline.Rectangle -> Path().apply { addRect(rect) }
+}
+
+@Composable
+fun Modifier.focusHighlight(shape: Shape): Modifier {
     var focused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (focused) 1.02f else 1f, label = "focusScale")
+    val scale by animateFloatAsState(
+        targetValue = if (focused) 1.02f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = FocusStiffness),
+        label = "focusScale",
+    )
     val color = MaterialTheme.colorScheme.secondaryContainer
-    this
+    return this
         .onFocusChanged { focused = it.hasFocus }
-        .scale(scale)
-        .background(if (focused) color else androidx.compose.ui.graphics.Color.Transparent, shape)
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .drawBehind {
+            if (focused) {
+                drawPath(shape.createOutline(size, layoutDirection, this).asPath(), color)
+            }
+        }
 }

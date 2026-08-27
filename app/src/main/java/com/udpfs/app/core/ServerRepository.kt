@@ -1,23 +1,14 @@
 package com.udpfs.app.core
 
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.*
+import kotlin.time.Duration.Companion.ZERO
+import kotlin.time.Duration.Companion.milliseconds
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.*
 import com.udpfs.udpfsbridge.Udpfsbridge
 import com.udpfs.udpfsbridge.Logger
+import android.os.SystemClock
 import android.content.Context
 
 sealed interface ServerStatus {
@@ -33,8 +24,15 @@ object ServerRepository {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var pollJob: Job? = null
+
+    @Volatile
     private var startJob: Job? = null
+
+    @Volatile
     private var settings: Settings? = null
+
+    @Volatile
+    private var appContext: Context? = null
 
     private val _status = MutableStateFlow<ServerStatus>(ServerStatus.Idle)
     val status: StateFlow<ServerStatus> = _status.asStateFlow()
@@ -56,33 +54,56 @@ object ServerRepository {
     private val logBuffer = ArrayDeque<LogLine>()
     private val logSeq = java.util.concurrent.atomic.AtomicLong()
 
+    private val logSignal = Channel<Unit>(capacity = Channel.CONFLATED)
+
+    @Synchronized
     fun init(context: Context) {
         if (settings != null) return
-        val s = Settings(context.applicationContext)
+        val appCtx = context.applicationContext
+        val s = Settings(appCtx)
+        appContext = appCtx
         settings = s
-        controller.setLogger(object : Logger {
-            override fun onLog(level: String, message: String) = onBridgeLog(level, message)
-        })
-        // TODO: dont blindly overwrite local edits here
-        scope.launch { s.config.collect { _config.value = it } }
+        controller.setLogger { level, message ->
+            onBridgeLog(level, message)
+        }
+        scope.launch {
+            try {
+                s.config.collect { _config.value = it }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                errors.emit("Failed to load settings: ${e.message ?: e.javaClass.simpleName}")
+            }
+        }
         scope.launch {
             combine(status, _config) { st, cfg -> st to cfg.showStats }
                 .collect { (st, show) ->
                     if (st is ServerStatus.Running && show) startPolling() else stopPolling()
                 }
         }
+        scope.launch {
+            while (true) {
+                logSignal.receive()
+                delay(LOG_FLUSH_MS)
+                synchronized(logBuffer) {
+                    if (logBuffer.isNotEmpty()) _logs.value = logBuffer.toList()
+                }
+            }
+        }
     }
 
-    fun start(): Boolean {
-        if (_status.value != ServerStatus.Idle) return true
-        val cfg = _config.value
-        val issues = cfg.validate()
-        if (issues.isNotEmpty()) {
-            scope.launch { errors.emit(issues.joinToString("\n") { it.message }) }
-            return false
-        }
-        _status.value = ServerStatus.Starting
+    fun start() {
+        if (!_status.compareAndSet(ServerStatus.Idle, ServerStatus.Starting)) return
         startJob = scope.launch {
+            val cfg = awaitConfig()
+            val issues = cfg.validate()
+            if (issues.isNotEmpty()) {
+                _status.value = ServerStatus.Idle
+                errors.emit(issues.joinToString("\n") { issue ->
+                    appContext?.getString(issue.reason.resId) ?: issue.reason.name
+                })
+                return@launch
+            }
             try {
                 withContext(Dispatchers.IO) { controller.start(cfg.toBridgeConfig()) }
                 if (!_status.compareAndSet(ServerStatus.Starting, ServerStatus.Running)) return@launch
@@ -90,12 +111,13 @@ object ServerRepository {
                 _mount.value = withContext(Dispatchers.IO) {
                     controller.mountInfo().toSnapshot(controller.compressionFormats().toFormatList())
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _status.value = ServerStatus.Idle
                 errors.emit(e.message ?: "Failed to start server")
             }
         }
-        return true
     }
 
     fun stop() {
@@ -125,8 +147,24 @@ object ServerRepository {
         if (pollJob?.isActive == true) return
         pollJob = scope.launch {
             while (isActive) {
-                delay(1000)
-                _stats.value = withContext(Dispatchers.IO) { controller.stats().let { s -> s.toSnapshot(buildList { repeat(s.peerCount.toInt()) { i -> controller.peer(i.toLong())?.let { add(it.toSnapshot()) } } }) } }
+                val startedAt = SystemClock.elapsedRealtime()
+                try {
+                    _stats.value = withContext(Dispatchers.IO) {
+                        val s = controller.stats()
+                        val peers = buildList {
+                            repeat(s.peerCount.toInt()) { i ->
+                                controller.peer(i.toLong())?.let { add(it.toSnapshot()) }
+                            }
+                        }
+                        s.toSnapshot(peers)
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    errors.emit("Stats update failed: ${e.message ?: e.javaClass.simpleName}")
+                }
+                val elapsed = (SystemClock.elapsedRealtime() - startedAt).milliseconds
+                delay((POLL_INTERVAL_MS - elapsed).coerceAtLeast(ZERO))
             }
         }
     }
@@ -139,10 +177,14 @@ object ServerRepository {
     private fun onBridgeLog(level: String, message: String) {
         synchronized(logBuffer) {
             logBuffer.addLast(LogLine(logSeq.incrementAndGet(), System.currentTimeMillis(), level, message))
-            while (logBuffer.size > 200) logBuffer.removeFirst()
-            _logs.value = logBuffer.toList()
+            while (logBuffer.size > MAX_LOG_LINES) logBuffer.removeFirst()
         }
+        logSignal.trySend(Unit)
     }
 }
+
+private const val MAX_LOG_LINES = 200
+private val LOG_FLUSH_MS = 250.milliseconds
+private val POLL_INTERVAL_MS = 1_000.milliseconds
 
 private fun String.toFormatList(): List<String> = split(',').filter { it.isNotBlank() }

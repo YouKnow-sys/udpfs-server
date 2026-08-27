@@ -5,10 +5,12 @@ import java.util.Locale
 
 object Formatters {
 
+    private val BYTE_UNITS = arrayOf("KiB", "MiB", "GiB", "TiB")
+
     fun bytes(v: Long): String {
         if (abs(v) < 1024) return "$v B"
         var value = v.toDouble()
-        for (unit in listOf("KiB", "MiB", "GiB", "TiB")) {
+        for (unit in BYTE_UNITS) {
             value /= 1024
             if (abs(value) < 1024) return String.format(Locale.US, "%.1f %s", value, unit)
         }

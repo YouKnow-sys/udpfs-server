@@ -5,7 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.MaterialTheme
 
-private val Scheme = darkColorScheme(
+private val UdpfsColorScheme = darkColorScheme(
     primary = Color(0xFF6FE0A2),
     onPrimary = Color(0xFF00391F),
     primaryContainer = Color(0xFF00532F),
@@ -33,6 +33,6 @@ private val Scheme = darkColorScheme(
 )
 
 @Composable
-fun UdpfsTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = Scheme, content = content)
+fun udpfsTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = UdpfsColorScheme, content = content)
 }

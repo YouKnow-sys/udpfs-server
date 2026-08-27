@@ -1,7 +1,5 @@
 package com.udpfs.app.ui.screens
 
-// TODO: split this screen up, its getting long
-
 import com.udpfs.app.ui.components.focusHighlight
 import com.udpfs.app.ui.BrowseTarget
 import com.udpfs.app.core.StorageMode
@@ -121,7 +119,7 @@ fun ConfigScreen(vm: AppViewModel, onBrowse: (BrowseTarget) -> Unit, isTv: Boole
             ) {
                 Text(stringResource(R.string.config_sector_size), style = MaterialTheme.typography.bodyLarge)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(512, 2048, 4096).forEach { size ->
+                    ServerConfig.SECTOR_SIZES.forEach { size ->
                         FilterChip(
                             selected = config.sectorSize == size,
                             enabled = enabled,
@@ -138,7 +136,7 @@ fun ConfigScreen(vm: AppViewModel, onBrowse: (BrowseTarget) -> Unit, isTv: Boole
                 min = 1,
                 max = 1440,
                 enabled = enabled,
-                suffix = " min",
+                suffix = stringResource(R.string.config_unit_minutes),
                 onChange = { v -> vm.updateConfig { it.copy(peerTimeoutMinutes = v) } },
             )
             PathRow(
@@ -173,7 +171,7 @@ fun ConfigScreen(vm: AppViewModel, onBrowse: (BrowseTarget) -> Unit, isTv: Boole
                     min = 1,
                     max = 4096,
                     enabled = enabled,
-                    suffix = " blk",
+                    suffix = stringResource(R.string.config_unit_blocks),
                     onChange = { v -> vm.updateConfig { it.copy(compressionCacheSize = v) } },
                 )
             }

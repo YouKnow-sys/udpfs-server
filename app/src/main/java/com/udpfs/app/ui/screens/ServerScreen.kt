@@ -1,23 +1,28 @@
 package com.udpfs.app.ui.screens
 
-// TODO: animate the power button
-
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
 import com.udpfs.app.ui.components.focusRing
 import com.udpfs.app.ui.components.InfoRow
+import com.udpfs.app.core.StorageMode
 import com.udpfs.app.core.ServerStatus
 import com.udpfs.app.core.ServerService
 import com.udpfs.app.core.ServerRepository
+import com.udpfs.app.core.ServerConfig
 import com.udpfs.app.core.Permissions
+import com.udpfs.app.core.MountSnapshot
+import com.udpfs.app.core.Formatters
 import com.udpfs.app.R
 import com.udpfs.app.AppViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.Lifecycle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -26,9 +31,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.material3.Text
@@ -65,23 +72,27 @@ fun ServerScreen(vm: AppViewModel, isTv: Boolean = false) {
     val status by vm.status.collectAsStateWithLifecycle()
     val config by vm.config.collectAsStateWithLifecycle()
     val mount by vm.mount.collectAsStateWithLifecycle()
-    val stats by vm.stats.collectAsStateWithLifecycle()
 
     var storageGranted by remember { mutableStateOf(Permissions.hasStorageAccess(context)) }
-    var ip by remember(status) { mutableStateOf(ServerRepository.localIP()) }
+    var ip by remember { mutableStateOf("") }
+    val running = status is ServerStatus.Running
+    LaunchedEffect(running) {
+        ip = withContext(Dispatchers.IO) { ServerRepository.localIP() }
+    }
+    val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 storageGranted = Permissions.hasStorageAccess(context)
-                ip = ServerRepository.localIP()
+                scope.launch { ip = withContext(Dispatchers.IO) { ServerRepository.localIP() } }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val requestWrite = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+    val requestStoragePerms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         storageGranted = Permissions.hasStorageAccess(context)
     }
     val requestNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -91,7 +102,7 @@ fun ServerScreen(vm: AppViewModel, isTv: Boolean = false) {
     val toggle: () -> Unit = {
         when (status) {
             ServerStatus.Idle -> when {
-                !storageGranted -> requestStorage(context, requestWrite)
+                !storageGranted -> requestStorage(context, requestStoragePerms)
                 Permissions.needsNotificationPermission(context) ->
                     requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
                 else -> ServerService.start(context)
@@ -100,8 +111,6 @@ fun ServerScreen(vm: AppViewModel, isTv: Boolean = false) {
             else -> {}
         }
     }
-
-    val running = status is ServerStatus.Running
 
     Column(
         modifier = Modifier
@@ -115,7 +124,7 @@ fun ServerScreen(vm: AppViewModel, isTv: Boolean = false) {
         verticalArrangement = Arrangement.spacedBy(if (isTv) 24.dp else 16.dp),
     ) {
         if (!storageGranted) {
-            StorageGate(onRequest = { requestStorage(context, requestWrite) })
+            StorageGate(onRequest = { requestStorage(context, requestStoragePerms) })
         }
 
         if (isTv) {
@@ -134,7 +143,7 @@ fun ServerScreen(vm: AppViewModel, isTv: Boolean = false) {
                         size = 252.dp,
                         onToggle = toggle,
                     )
-                    StatusText(status, stats.uptimeSeconds)
+                    StatusText(status, vm)
                 }
                 Column(
                     Modifier.weight(1f),
@@ -151,7 +160,7 @@ fun ServerScreen(vm: AppViewModel, isTv: Boolean = false) {
                 size = 216.dp,
                 onToggle = toggle,
             )
-            StatusText(status, stats.uptimeSeconds)
+            StatusText(status, vm)
             if (running) ConnectCard(ip = ip, port = config.port, startAligned = false)
             MountCard(mount, config)
         }
@@ -160,16 +169,17 @@ fun ServerScreen(vm: AppViewModel, isTv: Boolean = false) {
 
 private fun requestStorage(
     context: android.content.Context,
-    launcher: androidx.activity.result.ActivityResultLauncher<String>,
+    launcher: androidx.activity.result.ActivityResultLauncher<Array<String>>,
 ) {
-    val legacy = Permissions.legacyStoragePermission()
+    val legacy = Permissions.legacyStoragePermissions()
     if (legacy != null) launcher.launch(legacy) else context.startActivity(Permissions.storageSettingsIntent(context))
 }
 
 @Composable
-private fun StatusText(status: ServerStatus, uptimeSeconds: Long) {
+private fun StatusText(status: ServerStatus, vm: AppViewModel) {
+    val stats by vm.stats.collectAsStateWithLifecycle()
     Text(
-        text = statusLabel(status, uptimeSeconds),
+        text = statusLabel(status, stats.uptimeSeconds),
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -180,7 +190,7 @@ private fun statusLabel(status: ServerStatus, uptimeSeconds: Long): String = whe
     ServerStatus.Idle -> stringResource(R.string.status_idle)
     ServerStatus.Starting -> stringResource(R.string.status_starting)
     ServerStatus.Running ->
-        if (uptimeSeconds > 0) stringResource(R.string.status_running, com.udpfs.app.core.Formatters.duration(uptimeSeconds))
+        if (uptimeSeconds > 0) stringResource(R.string.status_running, Formatters.duration(uptimeSeconds))
         else stringResource(R.string.status_running_plain)
     ServerStatus.Stopping -> stringResource(R.string.status_stopping)
 }
@@ -277,10 +287,10 @@ private fun StorageGate(onRequest: () -> Unit) {
 
 @Composable
 private fun MountCard(
-    mount: com.udpfs.app.core.MountSnapshot,
-    config: com.udpfs.app.core.ServerConfig,
+    mount: MountSnapshot,
+    config: ServerConfig,
 ) {
-    val folderMode = config.storageMode == com.udpfs.app.core.StorageMode.Folder
+    val folderMode = config.storageMode == StorageMode.Folder
     val root = mount.fsRoot.ifEmpty { if (folderMode) config.fsRoot else "" }
     val image = mount.blockDevice.ifEmpty { if (!folderMode) config.blockDevice else "" }
     if (root.isBlank() && image.isBlank()) return
@@ -295,7 +305,7 @@ private fun MountCard(
             if (image.isNotBlank()) {
                 InfoRow(stringResource(R.string.mount_block_device), image)
                 if (mount.totalBytes > 0) {
-                    InfoRow(stringResource(R.string.mount_size), com.udpfs.app.core.Formatters.bytes(mount.totalBytes))
+                    InfoRow(stringResource(R.string.mount_size), Formatters.bytes(mount.totalBytes))
                 }
             }
             InfoRow(

@@ -30,10 +30,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Button
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.compose.material.icons.outlined.InsertDriveFile
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.Icons
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.items
@@ -73,11 +73,13 @@ fun FileBrowserScreen(
     val context = LocalContext.current
     val internalLabel = stringResource(R.string.browser_internal_storage)
 
-    val initial = File(startPath).let { f ->
-        when {
-            f.isDirectory -> f
-            f.isFile -> f.parentFile ?: File(DEFAULT_START)
-            else -> File(DEFAULT_START)
+    val initial = remember(startPath) {
+        File(startPath).let { f ->
+            when {
+                f.isDirectory -> f
+                f.isFile -> f.parentFile ?: File(DEFAULT_START)
+                else -> File(DEFAULT_START)
+            }
         }
     }
     var dirPath by rememberSaveable { mutableStateOf(initial.absolutePath) }
@@ -212,7 +214,7 @@ fun FileBrowserScreen(
                         icon = when {
                             isVolume -> Icons.Filled.Storage
                             entry.isDirectory -> Icons.Filled.Folder
-                            else -> Icons.Outlined.InsertDriveFile
+                            else -> Icons.AutoMirrored.Outlined.InsertDriveFile
                         },
                         name = entry.name,
                         detail = entry.size,

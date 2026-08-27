@@ -17,6 +17,8 @@ class AppViewModel(private val settings: Settings) : ViewModel() {
     val logs = ServerRepository.logs
 
     fun updateConfig(transform: (ServerConfig) -> ServerConfig) {
+        val current = config.value
+        if (transform(current) == current) return
         viewModelScope.launch { settings.update(transform) }
     }
 }
