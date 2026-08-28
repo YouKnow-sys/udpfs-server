@@ -1,6 +1,7 @@
 package com.udpfs.app.core
 
 import com.udpfs.udpfsbridge.Config
+import com.udpfs.udpfsbridge.Udpfsbridge
 
 data class TrafficCounters(
     val bytesTx: Long,
@@ -72,18 +73,48 @@ data class LogLine(
 
 fun ServerConfig.effectiveBridgePaths(): Pair<String, String> = if (storageMode == StorageMode.Folder) fsRoot to "" else "" to blockDevice
 
+class BridgeController {
+    private val controller = Udpfsbridge.newServer()
+
+    fun start(config: ServerConfig) = controller.start(config.toBridgeConfig())
+
+    fun stop() = controller.stop()
+
+    fun stats(): StatsSnapshot {
+        val s = controller.stats()
+        val peers =
+            buildList {
+                repeat(s.peerCount.toInt()) { i ->
+                    controller.peer(i.toLong())?.let { add(it.toSnapshot()) }
+                }
+            }
+        return s.toSnapshot(peers)
+    }
+
+    fun mount(): MountSnapshot = controller.mountInfo().toSnapshot(controller.compressionFormats().toFormatList())
+
+    fun setLogger(
+        logger: (
+            level: String,
+            message: String,
+        ) -> Unit,
+    ) {
+        controller.setLogger { level, message -> logger(level, message) }
+    }
+}
+
 fun ServerConfig.toBridgeConfig(): Config {
     val c = Config()
     val (fsRoot, blockDevice) = effectiveBridgePaths()
-    c.setFSRoot(fsRoot)
-    c.setBlockDevicePath(blockDevice)
-    c.setBindIP(bindIP)
-    c.setPort(port.toLong())
-    c.setSectorSize(sectorSize.toLong())
-    c.setReadOnly(readOnly)
-    c.setEnableCompression(enableCompression)
-    c.setCompressionCacheSize(compressionCacheSize.toLong())
-    c.setPeerTimeoutMinutes(peerTimeoutMinutes.toLong())
+    c.fsRoot = fsRoot
+    c.blockDevicePath = blockDevice
+    c.bindIP = bindIP
+    c.port = port.toLong()
+    c.sectorSize = sectorSize.toLong()
+    c.readOnly = readOnly
+    c.enableCompression = enableCompression
+    c.compressionCacheSize = compressionCacheSize.toLong()
+    c.peerTimeoutMinutes = peerTimeoutMinutes.toLong()
     return c
 }
 
@@ -143,7 +174,7 @@ internal fun com.udpfs.udpfsbridge.PeerStats.toSnapshot() =
 
 internal fun com.udpfs.udpfsbridge.MountInfo.toSnapshot(compressionFormats: List<String> = emptyList()) =
     MountSnapshot(
-        fsRoot = getFSRoot().orEmpty(),
+        fsRoot = fsRoot.orEmpty(),
         blockDevice = blockDevice.orEmpty(),
         sectorSize = sectorSize.toInt(),
         totalSectors = totalSectors,
@@ -151,3 +182,5 @@ internal fun com.udpfs.udpfsbridge.MountInfo.toSnapshot(compressionFormats: List
         readOnly = readOnly,
         compressionFormats = compressionFormats,
     )
+
+private fun String.toFormatList(): List<String> = split(',').filter { it.isNotBlank() }

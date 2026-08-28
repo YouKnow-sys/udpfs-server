@@ -7,6 +7,11 @@ import org.junit.Test
 class ServerConfigValidateTest {
     private val valid = ServerConfig(fsRoot = "/storage/emulated/0/share")
 
+    private fun assertIssues(
+        expected: List<ConfigIssueReason>,
+        config: ServerConfig,
+    ) = assertEquals(config.toString(), expected, config.validate())
+
     @Test
     fun `a complete folder config has no issues`() {
         assertTrue(valid.validate().isEmpty())
@@ -24,36 +29,21 @@ class ServerConfigValidateTest {
 
     @Test
     fun `blank storage paths are reported per mode`() {
-        assertEquals(
-            listOf(ConfigIssueReason.MissingFolder),
-            ServerConfig().validate(),
-        )
-        assertEquals(
-            listOf(ConfigIssueReason.MissingBlockDevice),
-            ServerConfig(storageMode = StorageMode.DiskImage).validate(),
-        )
+        assertIssues(listOf(ConfigIssueReason.MissingFolder), ServerConfig())
+        assertIssues(listOf(ConfigIssueReason.MissingBlockDevice), ServerConfig(storageMode = StorageMode.DiskImage))
     }
 
     @Test
     fun `port must be inside the valid range`() {
-        assertEquals(
-            listOf(ConfigIssueReason.PortRange),
-            valid.copy(port = 0).validate(),
-        )
-        assertEquals(
-            listOf(ConfigIssueReason.PortRange),
-            valid.copy(port = 65536).validate(),
-        )
+        assertIssues(listOf(ConfigIssueReason.PortRange), valid.copy(port = 0))
+        assertIssues(listOf(ConfigIssueReason.PortRange), valid.copy(port = 65536))
         assertTrue(valid.copy(port = 1).validate().isEmpty())
         assertTrue(valid.copy(port = 65535).validate().isEmpty())
     }
 
     @Test
     fun `sector size must be one of the supported sizes`() {
-        assertEquals(
-            listOf(ConfigIssueReason.SectorSize),
-            valid.copy(sectorSize = 1024).validate(),
-        )
+        assertIssues(listOf(ConfigIssueReason.SectorSize), valid.copy(sectorSize = 1024))
         ServerConfig.SECTOR_SIZES.forEach { size ->
             assertTrue("sector size $size should be valid", valid.copy(sectorSize = size).validate().isEmpty())
         }
@@ -61,23 +51,17 @@ class ServerConfigValidateTest {
 
     @Test
     fun `peer timeout must be between one minute and one day`() {
-        assertEquals(
-            listOf(ConfigIssueReason.PeerTimeoutRange),
-            valid.copy(peerTimeoutMinutes = 0).validate(),
-        )
-        assertEquals(
-            listOf(ConfigIssueReason.PeerTimeoutRange),
-            valid.copy(peerTimeoutMinutes = 1441).validate(),
-        )
+        assertIssues(listOf(ConfigIssueReason.PeerTimeoutRange), valid.copy(peerTimeoutMinutes = 0))
+        assertIssues(listOf(ConfigIssueReason.PeerTimeoutRange), valid.copy(peerTimeoutMinutes = 1441))
         assertTrue(valid.copy(peerTimeoutMinutes = 1).validate().isEmpty())
         assertTrue(valid.copy(peerTimeoutMinutes = 1440).validate().isEmpty())
     }
 
     @Test
     fun `compression requires a positive cache size`() {
-        assertEquals(
+        assertIssues(
             listOf(ConfigIssueReason.CompressionCache),
-            valid.copy(enableCompression = true, compressionCacheSize = 0).validate(),
+            valid.copy(enableCompression = true, compressionCacheSize = 0),
         )
         assertTrue(valid.copy(enableCompression = true, compressionCacheSize = 1).validate().isEmpty())
         assertTrue(valid.copy(compressionCacheSize = 0).validate().isEmpty())
@@ -85,14 +69,13 @@ class ServerConfigValidateTest {
 
     @Test
     fun `multiple problems are all reported`() {
-        val issues = ServerConfig(port = 0, sectorSize = 999).validate()
-        assertEquals(
+        assertIssues(
             listOf(
                 ConfigIssueReason.MissingFolder,
                 ConfigIssueReason.PortRange,
                 ConfigIssueReason.SectorSize,
             ),
-            issues,
+            ServerConfig(port = 0, sectorSize = 999),
         )
     }
 }

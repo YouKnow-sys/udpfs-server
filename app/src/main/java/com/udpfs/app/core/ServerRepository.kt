@@ -11,12 +11,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -43,7 +42,6 @@ class ServerRepository(
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val sdkInt: Int = Build.VERSION.SDK_INT,
     private val packageName: String = "",
-    private val monotonic: () -> Long = { SystemClock.elapsedRealtime() },
     private val issueText: (ConfigIssueReason) -> String = { it.name },
 ) {
     private var pollJob: Job? = null
@@ -67,7 +65,7 @@ class ServerRepository(
     private val _logs = MutableStateFlow<List<LogLine>>(emptyList())
     val logs: StateFlow<List<LogLine>> = _logs.asStateFlow()
 
-    val errors = MutableSharedFlow<String>(replay = 2, extraBufferCapacity = 8)
+    val errors = Channel<String>(Channel.UNLIMITED)
 
     private val logBuffer = LogRingBuffer(MAX_LOG_LINES)
 
@@ -77,11 +75,12 @@ class ServerRepository(
         controller.setLogger { level, message -> onBridgeLog(level, message) }
         scope.launch {
             guardCancellations({ configSource.collect { _config.value = it } }) { e ->
-                errors.emit("Failed to load settings: ${e.message ?: e.javaClass.simpleName}")
+                errors.trySend("Failed to load settings: ${e.message ?: e.javaClass.simpleName}")
             }
         }
         scope.launch {
             combine(status, _config) { st, cfg -> st to cfg.showStats }
+                .distinctUntilChanged()
                 .collect { (st, show) ->
                     if (st is ServerStatus.Running && show) startPolling() else stopPolling()
                 }
@@ -99,29 +98,44 @@ class ServerRepository(
         if (!_status.compareAndSet(ServerStatus.Idle, ServerStatus.Starting)) return
         val job =
             scope.launch {
-                val cfg = awaitConfig()
+                val cfg =
+                    guardCancellations({ awaitConfig() }) { e ->
+                        _status.compareAndSet(ServerStatus.Starting, ServerStatus.Idle)
+                        errors.trySend("Failed to load settings: ${e.message ?: e.javaClass.simpleName}")
+                    } ?: return@launch
+
                 val issues = cfg.validate()
                 if (issues.isNotEmpty()) {
                     _status.compareAndSet(ServerStatus.Starting, ServerStatus.Idle)
-                    errors.emit(issues.joinToString("\n", transform = issueText))
+                    errors.trySend(issues.joinToString("\n", transform = issueText))
                     return@launch
                 }
+
                 val effective =
                     if (forcesReadOnly(sdkInt, cfg.activeStoragePath, packageName)) {
                         cfg.copy(readOnly = true)
                     } else {
                         cfg
                     }
+
                 bridgeMutex.withLock {
-                    guardCancellations(
-                        { withContext(Dispatchers.IO) { controller.start(effective) } },
-                    ) { e ->
+                    guardCancellations({ withContext(Dispatchers.IO) { controller.start(effective) } }) { e ->
                         _status.compareAndSet(ServerStatus.Starting, ServerStatus.Idle)
-                        errors.emit(e.message ?: "Failed to start server")
+                        errors.trySend(e.message ?: "Failed to start server")
                     } ?: return@launch
+
                     if (!_status.compareAndSet(ServerStatus.Starting, ServerStatus.Running)) return@launch
+
                     _stats.value = StatsSnapshot(running = true)
-                    _mount.value = withContext(Dispatchers.IO) { controller.mount() }
+
+                    _mount.value = guardCancellations({ withContext(Dispatchers.IO) { controller.mount() } }) { e ->
+                        errors.trySend(e.message ?: "Failed to read mount info")
+                        if (_status.compareAndSet(ServerStatus.Running, ServerStatus.Idle)) {
+                            withContext(Dispatchers.IO) { controller.stop() }
+                            _stats.value = StatsSnapshot()
+                            _mount.value = MountSnapshot()
+                        }
+                    } ?: return@launch
                 }
             }
         startJob.set(job)
@@ -138,7 +152,7 @@ class ServerRepository(
                     withContext(Dispatchers.IO) { controller.stop() }
                 }
             } catch (e: Exception) {
-                errors.emit(e.message ?: "Failed to stop server")
+                errors.trySend(e.message ?: "Failed to stop server")
             } finally {
                 bridgeMutex.withLock {
                     _stats.value = StatsSnapshot()
@@ -160,15 +174,17 @@ class ServerRepository(
         pollJob =
             scope.launch {
                 while (isActive) {
-                    val startedAt = monotonic()
+                    val startedAt = SystemClock.elapsedRealtime()
                     val snapshot =
-                        guardCancellations(
-                            { withContext(Dispatchers.IO) { controller.stats() } },
-                        ) { e ->
-                            errors.emit("Stats update failed: ${e.message ?: e.javaClass.simpleName}")
+                        guardCancellations({ withContext(Dispatchers.IO) { controller.stats() } }) { e ->
+                            errors.trySend("Stats update failed: ${e.message ?: e.javaClass.simpleName}")
                         }
-                    if (snapshot != null) _stats.value = snapshot
-                    val elapsed = (monotonic() - startedAt).milliseconds
+                    if (snapshot != null) {
+                        bridgeMutex.withLock {
+                            if (_status.value is ServerStatus.Running) _stats.value = snapshot
+                        }
+                    }
+                    val elapsed = (SystemClock.elapsedRealtime() - startedAt).milliseconds
                     delay((POLL_INTERVAL_MS - elapsed).coerceAtLeast(ZERO))
                 }
             }
@@ -192,7 +208,7 @@ private const val MAX_LOG_LINES = 200
 private val LOG_FLUSH_MS = 250.milliseconds
 private val POLL_INTERVAL_MS = 1_000.milliseconds
 
-private suspend inline fun <T> guardCancellations(
+private inline fun <T> guardCancellations(
     block: () -> T,
     onError: (Exception) -> Unit,
 ): T? =

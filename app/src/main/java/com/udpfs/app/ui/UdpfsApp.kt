@@ -1,3 +1,5 @@
+@file:Suppress("FunctionName")
+
 package com.udpfs.app.ui
 
 import android.content.res.Configuration
@@ -65,7 +67,7 @@ fun UdpfsApp() {
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
-        vm.errors.collect { snackbar.showSnackbar(it) }
+        for (message in vm.errors) snackbar.showSnackbar(message)
     }
 
     LaunchedEffect(config.showStats) {
@@ -73,7 +75,7 @@ fun UdpfsApp() {
     }
 
     val isTv =
-        LocalConfiguration.current.uiMode and Configuration.UI_MODE_TYPE_MASK ==
+        (LocalConfiguration.current.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
             Configuration.UI_MODE_TYPE_TELEVISION
 
     val destinations =

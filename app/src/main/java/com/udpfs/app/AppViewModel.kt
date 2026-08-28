@@ -8,7 +8,7 @@ import com.udpfs.app.core.Settings
 import kotlinx.coroutines.launch
 
 class AppViewModel(
-    private val repo: ServerRepository,
+    repo: ServerRepository,
     private val settings: Settings,
 ) : ViewModel() {
     val status = repo.status

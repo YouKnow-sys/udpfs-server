@@ -1,25 +1,23 @@
 package com.udpfs.app.core
 
-fun volumeRootPath(
-    externalFilesDirPath: String,
-    packageName: String,
-): String? {
+private const val ALL_FILES_ACCESS_SDK = 30
+
+fun volumeRootPath(externalFilesDirPath: String, packageName: String): String? {
     val suffix = "/Android/data/$packageName/files"
-    if (!externalFilesDirPath.endsWith(suffix)) return null
-    return externalFilesDirPath.removeSuffix(suffix)
+    return externalFilesDirPath.takeIf { it.endsWith(suffix) }?.removeSuffix(suffix)
 }
 
-fun isRemovableVolumePath(path: String): Boolean = path.startsWith("/storage/") && !path.startsWith("/storage/emulated")
+fun isRemovableVolumePath(path: String): Boolean =
+    path.startsWith("/storage/") && !path.startsWith("/storage/emulated")
 
-fun forcesReadOnly(
-    sdkInt: Int,
-    path: String,
-    packageName: String,
-): Boolean {
-    if (sdkInt >= 30) return false
+private fun String.isWithinOwnAppDir(packageName: String): Boolean {
+    val normalized = trimEnd('/') + "/"
+    return normalized.contains("/Android/data/$packageName/") ||
+        normalized.contains("/Android/media/$packageName/")
+}
+
+fun forcesReadOnly(sdkInt: Int, path: String, packageName: String): Boolean {
+    if (sdkInt >= ALL_FILES_ACCESS_SDK) return false
     if (!isRemovableVolumePath(path)) return false
-    val normalized = path.trimEnd('/') + "/"
-    val ownDataDir = "/Android/data/$packageName/"
-    val ownMediaDir = "/Android/media/$packageName/"
-    return !normalized.contains(ownDataDir) && !normalized.contains(ownMediaDir)
+    return !path.isWithinOwnAppDir(packageName)
 }

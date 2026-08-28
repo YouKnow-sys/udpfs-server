@@ -1,3 +1,5 @@
+@file:Suppress("FunctionName")
+
 package com.udpfs.app.ui.screens
 
 import androidx.activity.compose.BackHandler
@@ -255,11 +257,10 @@ fun FileBrowserScreen(
                         }
                     }
                     items(result.entries, key = { it.path }) { entry ->
-                        val isVolume = atVolumes
                         BrowserRow(
                             icon =
                                 when {
-                                    isVolume -> Icons.Filled.Storage
+                                    atVolumes -> Icons.Filled.Storage
                                     entry.isDirectory -> Icons.Filled.Folder
                                     else -> Icons.AutoMirrored.Outlined.InsertDriveFile
                                 },

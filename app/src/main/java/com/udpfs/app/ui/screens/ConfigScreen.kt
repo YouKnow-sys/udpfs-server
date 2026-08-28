@@ -1,3 +1,5 @@
+@file:Suppress("FunctionName")
+
 package com.udpfs.app.ui.screens
 
 import android.os.Build
