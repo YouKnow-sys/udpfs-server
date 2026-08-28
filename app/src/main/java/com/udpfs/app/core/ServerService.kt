@@ -115,7 +115,6 @@ class ServerService : Service() {
                 Intent(this, MainActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-            ٌ
         val stop =
             PendingIntent.getService(
                 this,
@@ -123,7 +122,6 @@ class ServerService : Service() {
                 Intent(this, ServerService::class.java).setAction(ACTION_STOP),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-
         val text =
             when (status) {
                 is ServerStatus.Running -> {

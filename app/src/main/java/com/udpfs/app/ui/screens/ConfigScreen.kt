@@ -3,6 +3,7 @@
 package com.udpfs.app.ui.screens
 
 import android.os.Build
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -41,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -176,17 +179,13 @@ private fun StorageSection(
 ) {
     Section(stringResource(R.string.config_section_storage)) {
         SettingRow(stringResource(R.string.config_share)) {
-            SingleChoiceSegmentedButtonRow {
-                StorageMode.entries.forEachIndexed { index, mode ->
-                    SegmentedButton(
-                        selected = config.storageMode == mode,
-                        onClick = { vm.updateConfig { it.copy(storageMode = mode) } },
-                        enabled = enabled,
-                        shape = SegmentedButtonDefaults.itemShape(index, StorageMode.entries.size),
-                        label = { Text(modeLabel(mode)) },
-                    )
-                }
-            }
+            SegmentedRow(
+                options = StorageMode.entries,
+                selected = config.storageMode,
+                enabled = enabled,
+                optionLabel = { modeLabel(it) },
+                onSelect = { mode -> vm.updateConfig { it.copy(storageMode = mode) } },
+            )
         }
         if (config.storageMode == StorageMode.Folder) {
             PathRow(
@@ -235,17 +234,13 @@ private fun ServerSection(
             onChange = { v -> vm.updateConfig { it.copy(port = v) } },
         )
         SettingRow(stringResource(R.string.config_sector_size)) {
-            SingleChoiceSegmentedButtonRow {
-                ServerConfig.SECTOR_SIZES.forEachIndexed { index, size ->
-                    SegmentedButton(
-                        selected = config.sectorSize == size,
-                        onClick = { vm.updateConfig { it.copy(sectorSize = size) } },
-                        enabled = enabled,
-                        shape = SegmentedButtonDefaults.itemShape(index, ServerConfig.SECTOR_SIZES.size),
-                        label = { Text(size.toString()) },
-                    )
-                }
-            }
+            SegmentedRow(
+                options = ServerConfig.SECTOR_SIZES,
+                selected = config.sectorSize,
+                enabled = enabled,
+                optionLabel = { it.toString() },
+                onSelect = { size -> vm.updateConfig { it.copy(sectorSize = size) } },
+            )
         }
         StepperRow(
             title = stringResource(R.string.config_peer_timeout),
@@ -383,7 +378,7 @@ private fun StepperRow(
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
         IconButton(onClick = { onChange((value - step).coerceAtLeast(min)) }, enabled = enabled && value > min) {
-            Icon(Icons.Filled.Remove, contentDescription = null)
+            Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.action_decrease, title))
         }
         Text(
             "$value$suffix",
@@ -403,7 +398,7 @@ private fun StepperRow(
                     ),
         )
         IconButton(onClick = { onChange((value + step).coerceAtMost(max)) }, enabled = enabled && value < max) {
-            Icon(Icons.Filled.Add, contentDescription = null)
+            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_increase, title))
         }
     }
 }
@@ -415,12 +410,48 @@ private fun SwitchRow(
     enabled: Boolean,
     onChange: (Boolean) -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        Modifier
+            .fillMaxWidth()
+            .toggleable(
+                value = checked,
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = onChange,
+            ).padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            enabled = enabled,
+            interactionSource = interactionSource,
+        )
+    }
+}
+
+@Composable
+private fun <T> SegmentedRow(
+    options: List<T>,
+    selected: T,
+    enabled: Boolean,
+    optionLabel: @Composable (T) -> String,
+    onSelect: (T) -> Unit,
+) {
+    SingleChoiceSegmentedButtonRow {
+        options.forEachIndexed { index, option ->
+            SegmentedButton(
+                selected = option == selected,
+                onClick = { onSelect(option) },
+                enabled = enabled,
+                shape = SegmentedButtonDefaults.itemShape(index, options.size),
+                label = { Text(optionLabel(option)) },
+            )
+        }
     }
 }
 

@@ -47,6 +47,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -199,38 +200,32 @@ private fun StatusText(
 ) {
     val stats by vm.stats.collectAsStateWithLifecycle()
     Text(
-        text = statusLabel(status, stats.uptimeSeconds),
+        text =
+            when (status) {
+                ServerStatus.Idle -> {
+                    stringResource(R.string.status_idle)
+                }
+
+                ServerStatus.Starting -> {
+                    stringResource(R.string.status_starting)
+                }
+
+                ServerStatus.Running -> {
+                    if (stats.uptimeSeconds > 0) {
+                        stringResource(R.string.status_running, Formatters.duration(stats.uptimeSeconds))
+                    } else {
+                        stringResource(R.string.status_running_plain)
+                    }
+                }
+
+                ServerStatus.Stopping -> {
+                    stringResource(R.string.status_stopping)
+                }
+            },
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
-
-@Composable
-private fun statusLabel(
-    status: ServerStatus,
-    uptimeSeconds: Long,
-): String =
-    when (status) {
-        ServerStatus.Idle -> {
-            stringResource(R.string.status_idle)
-        }
-
-        ServerStatus.Starting -> {
-            stringResource(R.string.status_starting)
-        }
-
-        ServerStatus.Running -> {
-            if (uptimeSeconds > 0) {
-                stringResource(R.string.status_running, Formatters.duration(uptimeSeconds))
-            } else {
-                stringResource(R.string.status_running_plain)
-            }
-        }
-
-        ServerStatus.Stopping -> {
-            stringResource(R.string.status_stopping)
-        }
-    }
 
 @Composable
 private fun PowerButton(
@@ -253,7 +248,7 @@ private fun PowerButton(
                 .clip(CircleShape)
                 .background(container)
                 .border(5.dp, ring, CircleShape)
-                .clickable(enabled = !busy) {
+                .clickable(enabled = !busy, role = Role.Button) {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onToggle()
                 },

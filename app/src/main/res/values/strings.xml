@@ -17,11 +17,12 @@
     <string name="action_cancel">Cancel</string>
     <string name="action_save">Save</string>
     <string name="action_close">Close</string>
+    <string name="action_decrease">Decrease %1$s</string>
+    <string name="action_increase">Increase %1$s</string>
 
     <string name="storage_title">File access needed</string>
     <string name="storage_hint">Grant all files access so the server can share folders on this device</string>
     <string name="storage_grant">Grant</string>
-    <string name="storage_settings_missing">All files access settings are unavailable on this device. Grant it over adb with:\n%s</string>
 
     <string name="connect_title">Connect to this server</string>
     <string name="connect_hint">Point your UDPFS client at this address</string>
