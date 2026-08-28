@@ -34,6 +34,6 @@ private val UdpfsColorScheme =
     )
 
 @Composable
-fun udpfsTheme(content: @Composable () -> Unit) {
+fun UdpfsTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = UdpfsColorScheme, content = content)
 }

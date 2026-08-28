@@ -1,5 +1,3 @@
-@file:Suppress("FunctionName")
-
 package com.udpfs.app.ui.screens
 
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -52,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.udpfs.app.AppViewModel
 import com.udpfs.app.R
 import com.udpfs.app.core.Formatters
+import com.udpfs.app.core.LogLevel
 import com.udpfs.app.core.LogLine
 import com.udpfs.app.core.PeerSnapshot
 import com.udpfs.app.ui.components.EmptyState
@@ -298,7 +297,7 @@ private fun LogsCard(
                     modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp),
                 )
             } else {
-                val recentLogs = remember(logs) { logs.takeLast(100).asReversed() }
+                val recentLogs = remember(logs) { logs.take(100) }
                 LazyColumn(
                     Modifier
                         .fillMaxWidth()
@@ -343,7 +342,7 @@ private fun LogDialog(
                     Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(3.dp),
                 ) {
-                    items(logs.asReversed(), key = { it.seq }) { line ->
+                    items(logs, key = { it.seq }) { line ->
                         LogLineRow(line, timeFormat)
                     }
                 }
@@ -358,9 +357,9 @@ private fun LogLineRow(
     timeFormat: DateTimeFormatter,
 ) {
     val color =
-        when (line.level.uppercase()) {
-            "ERROR" -> MaterialTheme.colorScheme.error
-            "WARN" -> MaterialTheme.colorScheme.tertiary
+        when (line.level) {
+            LogLevel.ERROR -> MaterialTheme.colorScheme.error
+            LogLevel.WARN -> MaterialTheme.colorScheme.tertiary
             else -> MaterialTheme.colorScheme.onSurfaceVariant
         }
     Text(

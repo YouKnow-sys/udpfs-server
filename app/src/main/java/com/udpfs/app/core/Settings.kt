@@ -1,19 +1,16 @@
 package com.udpfs.app.core
 
-import android.content.Context
 import androidx.annotation.StringRes
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import com.udpfs.app.R
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-
-private val Context.dataStore by preferencesDataStore(name = "settings")
 
 data class ServerConfig(
     val fsRoot: String = "",
@@ -84,16 +81,20 @@ internal fun Preferences.toServerConfig() =
     )
 
 class Settings(
-    private val context: Context,
+    private val dataStore: DataStore<Preferences>,
 ) {
-    val config: Flow<ServerConfig> = context.dataStore.data.map { it.toServerConfig() }
+    val config: Flow<ServerConfig> = dataStore.data.map { it.toServerConfig() }
 
     suspend fun update(transform: (ServerConfig) -> ServerConfig) {
-        context.dataStore.edit { p ->
+        dataStore.edit { p ->
             val old = p.toServerConfig()
             val c = transform(old)
             if (c != old) c.writeTo(p)
         }
+    }
+
+    suspend fun set(config: ServerConfig) {
+        dataStore.edit { config.writeTo(it) }
     }
 }
 

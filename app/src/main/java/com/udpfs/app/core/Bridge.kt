@@ -1,44 +1,44 @@
 package com.udpfs.app.core
 
 import com.udpfs.udpfsbridge.Config
+import com.udpfs.udpfsbridge.ServerController
 import com.udpfs.udpfsbridge.Udpfsbridge
 
-data class TrafficCounters(
-    val bytesTx: Long,
-    val bytesRx: Long,
-    val avgTxThroughput: Double,
-    val avgRxThroughput: Double,
-    val totalOps: Long,
-    val errors: Long,
-    val reads: Long,
-    val writes: Long,
-    val packetsTx: Long,
-    val packetsRx: Long,
-    val retransmits: Long,
-    val nackCount: Long,
-    val outOfOrder: Long,
-    val peerNackCount: Long,
-    val resetCount: Long,
-)
+enum class LogLevel {
+    DEBUG,
+    INFO,
+    WARN,
+    ERROR,
+    ;
 
-private val EMPTY_COUNTERS =
-    TrafficCounters(
-        bytesTx = 0,
-        bytesRx = 0,
-        avgTxThroughput = 0.0,
-        avgRxThroughput = 0.0,
-        totalOps = 0,
-        errors = 0,
-        reads = 0,
-        writes = 0,
-        packetsTx = 0,
-        packetsRx = 0,
-        retransmits = 0,
-        nackCount = 0,
-        outOfOrder = 0,
-        peerNackCount = 0,
-        resetCount = 0,
-    )
+    companion object {
+        fun of(value: String): LogLevel =
+            when (value.uppercase()) {
+                "ERROR" -> ERROR
+                "WARN", "WARNING" -> WARN
+                "INFO" -> INFO
+                else -> DEBUG
+            }
+    }
+}
+
+data class TrafficCounters(
+    val bytesTx: Long = 0,
+    val bytesRx: Long = 0,
+    val avgTxThroughput: Double = 0.0,
+    val avgRxThroughput: Double = 0.0,
+    val totalOps: Long = 0,
+    val errors: Long = 0,
+    val reads: Long = 0,
+    val writes: Long = 0,
+    val packetsTx: Long = 0,
+    val packetsRx: Long = 0,
+    val retransmits: Long = 0,
+    val nackCount: Long = 0,
+    val outOfOrder: Long = 0,
+    val peerNackCount: Long = 0,
+    val resetCount: Long = 0,
+)
 
 data class PeerSnapshot(
     val addr: String,
@@ -50,7 +50,7 @@ data class StatsSnapshot(
     val running: Boolean = false,
     val uptimeSeconds: Long = 0,
     val peerCount: Int = 0,
-    val counters: TrafficCounters = EMPTY_COUNTERS,
+    val counters: TrafficCounters = TrafficCounters(),
     val peers: List<PeerSnapshot> = emptyList(),
 )
 
@@ -67,41 +67,64 @@ data class MountSnapshot(
 data class LogLine(
     val seq: Long,
     val timeMillis: Long,
-    val level: String,
+    val level: LogLevel,
     val message: String,
 )
 
-class BridgeController {
-    private val controller = Udpfsbridge.newServer()
+interface BridgeController {
+    fun start(config: ServerConfig)
 
-    fun start(config: ServerConfig) = controller.start(config.toBridgeConfig())
+    fun stop()
 
-    fun stop() = controller.stop()
+    fun stats(): StatsSnapshot
 
-    fun stats(): StatsSnapshot {
-        val s = controller.stats()
+    fun mount(): MountSnapshot
+
+    fun setLogger(logger: (level: LogLevel, message: String) -> Unit)
+
+    fun localIP(): String
+}
+
+class GomobileBridgeController : BridgeController {
+    private var logger: ((level: LogLevel, message: String) -> Unit)? = null
+
+    private val delegateHolder =
+        lazy {
+            Udpfsbridge.newServer().also(::attachLogger)
+        }
+    private val delegate: ServerController by delegateHolder
+
+    override fun start(config: ServerConfig) = delegate.start(config.toBridgeConfig())
+
+    override fun stop() = delegate.stop()
+
+    override fun stats(): StatsSnapshot {
+        val s = delegate.stats()
         val peers =
             buildList {
                 repeat(s.peerCount.toInt()) { i ->
-                    controller.peer(i.toLong())?.let { add(it.toSnapshot()) }
+                    delegate.peer(i.toLong())?.let { add(it.toSnapshot()) }
                 }
             }
         return s.toSnapshot(peers)
     }
 
-    fun mount(): MountSnapshot = controller.mountInfo().toSnapshot(controller.compressionFormats().toFormatList())
+    override fun mount(): MountSnapshot = delegate.mountInfo().toSnapshot(delegate.compressionFormats().toFormatList())
 
-    fun setLogger(
-        logger: (
-            level: String,
-            message: String,
-        ) -> Unit,
-    ) {
-        controller.setLogger { level, message -> logger(level, message) }
+    override fun setLogger(logger: (level: LogLevel, message: String) -> Unit) {
+        this.logger = logger
+        if (delegateHolder.isInitialized()) attachLogger(delegate)
+    }
+
+    override fun localIP(): String = Udpfsbridge.getLocalIP()
+
+    private fun attachLogger(server: ServerController) {
+        val logger = this.logger ?: return
+        server.setLogger { level, message -> logger(LogLevel.of(level), message) }
     }
 }
 
-fun ServerConfig.toBridgeConfig(): Config {
+private fun ServerConfig.toBridgeConfig(): Config {
     val c = Config()
     c.fsRoot = fsRoot
     c.blockDevicePath = blockDevice
@@ -153,7 +176,7 @@ private fun com.udpfs.udpfsbridge.PeerStats.toCounters() =
         resetCount = resetCount,
     )
 
-internal fun com.udpfs.udpfsbridge.Stats.toSnapshot(peers: List<PeerSnapshot> = emptyList()) =
+private fun com.udpfs.udpfsbridge.Stats.toSnapshot(peers: List<PeerSnapshot> = emptyList()) =
     StatsSnapshot(
         running = running,
         uptimeSeconds = uptimeSeconds,
@@ -162,14 +185,14 @@ internal fun com.udpfs.udpfsbridge.Stats.toSnapshot(peers: List<PeerSnapshot> = 
         peers = peers,
     )
 
-internal fun com.udpfs.udpfsbridge.PeerStats.toSnapshot() =
+private fun com.udpfs.udpfsbridge.PeerStats.toSnapshot() =
     PeerSnapshot(
         addr = addr.orEmpty(),
         lastSeenUnix = lastSeenUnix,
         counters = toCounters(),
     )
 
-internal fun com.udpfs.udpfsbridge.MountInfo.toSnapshot(compressionFormats: List<String> = emptyList()) =
+private fun com.udpfs.udpfsbridge.MountInfo.toSnapshot(compressionFormats: List<String> = emptyList()) =
     MountSnapshot(
         fsRoot = fsRoot.orEmpty(),
         blockDevice = blockDevice.orEmpty(),

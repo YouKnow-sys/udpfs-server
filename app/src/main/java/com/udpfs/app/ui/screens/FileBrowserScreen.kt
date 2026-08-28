@@ -1,5 +1,3 @@
-@file:Suppress("FunctionName")
-
 package com.udpfs.app.ui.screens
 
 import androidx.activity.compose.BackHandler

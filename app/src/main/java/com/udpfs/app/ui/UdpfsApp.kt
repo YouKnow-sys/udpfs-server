@@ -1,5 +1,3 @@
-@file:Suppress("FunctionName")
-
 package com.udpfs.app.ui
 
 import android.content.res.Configuration
@@ -46,6 +44,7 @@ import com.udpfs.app.ui.screens.DEFAULT_START
 import com.udpfs.app.ui.screens.FileBrowserScreen
 import com.udpfs.app.ui.screens.ServerScreen
 import com.udpfs.app.ui.screens.StatsScreen
+import kotlinx.coroutines.flow.map
 
 enum class Screen { Server, Config, Stats }
 
@@ -57,8 +56,9 @@ enum class BrowseTarget { FsRoot, BlockDevice }
 fun UdpfsApp() {
     val context = LocalContext.current
     val app = context.applicationContext as UdpfsApplication
-    val vm: AppViewModel = viewModel { AppViewModel(app.serverRepository, app.settings) }
-    val config by vm.config.collectAsStateWithLifecycle()
+    val vm: AppViewModel = viewModel { AppViewModel(app.serverRepository) }
+
+    val showStats by vm.config.map { it.showStats }.collectAsStateWithLifecycle(initialValue = true)
 
     var screen by rememberSaveable { mutableStateOf(Screen.Server) }
     var browseTarget by rememberSaveable { mutableStateOf<BrowseTarget?>(null) }
@@ -68,8 +68,8 @@ fun UdpfsApp() {
         for (message in vm.errors) snackbar.showSnackbar(message)
     }
 
-    LaunchedEffect(config.showStats) {
-        if (!config.showStats && screen == Screen.Stats) screen = Screen.Server
+    LaunchedEffect(showStats) {
+        if (!showStats && screen == Screen.Stats) screen = Screen.Server
     }
 
     val isTv =
@@ -77,11 +77,11 @@ fun UdpfsApp() {
             Configuration.UI_MODE_TYPE_TELEVISION
 
     val destinations =
-        remember(config.showStats) {
+        remember(showStats) {
             buildList {
                 add(Screen.Server to Icons.Filled.PowerSettingsNew)
                 add(Screen.Config to Icons.Filled.Tune)
-                if (config.showStats) add(Screen.Stats to Icons.Filled.Insights)
+                if (showStats) add(Screen.Stats to Icons.Filled.Insights)
             }
         }
 
@@ -107,6 +107,7 @@ fun UdpfsApp() {
     ) { padding ->
         val target = browseTarget
         if (target != null) {
+            val config = vm.config.value
             Box(Modifier.fillMaxSize().padding(padding)) {
                 FileBrowserScreen(
                     mode = if (target == BrowseTarget.FsRoot) BrowseMode.Directory else BrowseMode.File,

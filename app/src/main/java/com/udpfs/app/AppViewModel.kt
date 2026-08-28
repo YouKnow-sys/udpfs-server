@@ -2,16 +2,12 @@ package com.udpfs.app
 
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.udpfs.app.core.ServerConfig
 import com.udpfs.app.core.ServerRepository
-import com.udpfs.app.core.Settings
 import com.udpfs.app.core.WriteAccess
-import kotlinx.coroutines.launch
 
 class AppViewModel(
-    repo: ServerRepository,
-    private val settings: Settings,
+    private val repo: ServerRepository,
 ) : ViewModel() {
     val status = repo.status
     val config = repo.config
@@ -20,9 +16,7 @@ class AppViewModel(
     val logs = repo.logs
     val errors = repo.errors
 
-    fun updateConfig(transform: (ServerConfig) -> ServerConfig) {
-        viewModelScope.launch { settings.update(transform) }
-    }
+    fun updateConfig(transform: (ServerConfig) -> ServerConfig) = repo.updateConfig(transform)
 
     private val writeAccessCache = mutableStateMapOf<String, WriteAccess>()
 
@@ -47,7 +41,5 @@ class AppViewModel(
     private fun pickStoragePath(
         path: String,
         select: (ServerConfig, String) -> ServerConfig,
-    ) {
-        viewModelScope.launch { settings.update { c -> select(c, path) } }
-    }
+    ) = repo.updateConfig { c -> select(c, path) }
 }

@@ -8,7 +8,7 @@ internal class LogRingBuffer(
 
     @Synchronized
     fun append(
-        level: String,
+        level: LogLevel,
         message: String,
         timeMillis: Long = System.currentTimeMillis(),
     ) {

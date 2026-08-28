@@ -1,5 +1,3 @@
-@file:Suppress("FunctionName")
-
 package com.udpfs.app.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
