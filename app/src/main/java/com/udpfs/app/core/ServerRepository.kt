@@ -108,8 +108,11 @@ class ServerRepository(
                     return@launch
                 }
 
+                val effective =
+                    cfg.copy(readOnly = cfg.readOnly || forcesReadOnly(cfg.fsRoot) || forcesReadOnly(cfg.blockDevice))
+
                 bridgeMutex.withLock {
-                    guardCancellations({ withContext(Dispatchers.IO) { controller.start(cfg) } }) { e ->
+                    guardCancellations({ withContext(Dispatchers.IO) { controller.start(effective) } }) { e ->
                         _status.compareAndSet(ServerStatus.Starting, ServerStatus.Idle)
                         errors.trySend(e.message ?: "Failed to start server")
                     } ?: return@launch

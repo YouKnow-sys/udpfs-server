@@ -1,6 +1,7 @@
 package com.udpfs.app.core
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -8,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.Settings
+import androidx.activity.result.ActivityResultLauncher
 import androidx.core.content.ContextCompat
 
 object Permissions {
@@ -24,6 +26,37 @@ object Permissions {
     fun storageSettingsIntent(context: Context): Intent =
         Intent(
             Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+            Uri.parse("package:${context.packageName}"),
+        )
+
+    fun requestStorageAccess(
+        context: Context,
+        launcher: ActivityResultLauncher<Array<String>>,
+    ) {
+        val legacy = legacyStoragePermissions()
+        if (legacy != null) {
+            launcher.launch(legacy)
+            return
+        }
+        try {
+            context.startActivity(storageSettingsIntent(context))
+        } catch (e: ActivityNotFoundException) {
+            openAppDetails(context)
+        } catch (e: SecurityException) {
+            openAppDetails(context)
+        }
+    }
+
+    private fun openAppDetails(context: Context) {
+        try {
+            context.startActivity(appDetailsIntent(context))
+        } catch (e: ActivityNotFoundException) {
+        }
+    }
+
+    private fun appDetailsIntent(context: Context): Intent =
+        Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
             Uri.parse("package:${context.packageName}"),
         )
 

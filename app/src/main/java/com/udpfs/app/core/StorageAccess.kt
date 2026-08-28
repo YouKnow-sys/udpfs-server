@@ -1,5 +1,8 @@
 package com.udpfs.app.core
 
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.nio.channels.FileChannel
 import java.nio.file.AccessDeniedException
@@ -10,6 +13,7 @@ import java.nio.file.NoSuchFileException
 import java.nio.file.ReadOnlyFileSystemException
 import java.nio.file.StandardOpenOption
 import java.nio.file.attribute.BasicFileAttributes
+import java.util.concurrent.Executors
 
 enum class WriteAccess {
     WRITABLE,
@@ -74,3 +78,18 @@ private fun probeFile(file: File): WriteAccess =
     } catch (e: ReadOnlyFileSystemException) {
         WriteAccess.READ_ONLY
     }
+
+private val probeDispatcher =
+    Executors
+        .newSingleThreadExecutor { r -> Thread(r, "udpfs-write-probe").apply { isDaemon = true } }
+        .asCoroutineDispatcher()
+
+suspend fun probeWriteAccessCapped(target: File): WriteAccess {
+    val access =
+        withTimeoutOrNull(WRITE_PROBE_TIMEOUT_MS) {
+            withContext(probeDispatcher) { probeWriteAccess(target) }
+        }
+    return access ?: WriteAccess.READ_ONLY
+}
+
+suspend fun forcesReadOnly(path: String): Boolean = path.isNotBlank() && probeWriteAccessCapped(File(path)) == WriteAccess.READ_ONLY

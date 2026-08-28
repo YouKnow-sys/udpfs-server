@@ -53,4 +53,5 @@ install: apk-debug
 
 clean:
 	rm -f "$(AAR_OUT)" app/libs/udpfsbridge-sources.jar app/libs/*.jar
+	rm -rf build
 	./gradlew clean

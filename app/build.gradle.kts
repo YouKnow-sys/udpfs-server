@@ -45,8 +45,15 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    androidResources {
+        localeFilters += listOf("en")
+    }
+
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        resources.excludes += "/META-INF/**/LICENSE*"
+        resources.excludes += "/META-INF/*.version"
+        resources.excludes += "DebugProbesKt.bin"
     }
 }
 

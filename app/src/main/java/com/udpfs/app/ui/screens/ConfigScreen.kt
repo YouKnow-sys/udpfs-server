@@ -42,6 +42,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -56,17 +59,13 @@ import com.udpfs.app.AppViewModel
 import com.udpfs.app.R
 import com.udpfs.app.core.ServerConfig
 import com.udpfs.app.core.ServerStatus
-import com.udpfs.app.core.WRITE_PROBE_TIMEOUT_MS
 import com.udpfs.app.core.WriteAccess
-import com.udpfs.app.core.probeWriteAccess
+import com.udpfs.app.core.probeWriteAccessCapped
 import com.udpfs.app.ui.BrowseTarget
 import com.udpfs.app.ui.components.SettingRow
 import com.udpfs.app.ui.components.SupportingText
 import com.udpfs.app.ui.components.focusRing
 import com.udpfs.app.ui.components.focusedClickable
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 
 private enum class EditTarget {
@@ -87,11 +86,14 @@ fun ConfigScreen(
     var resumeKey by remember { mutableStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumeKey++ }
 
-    val fsRootAccess by writeAccessState(config.fsRoot, resumeKey)
-    val blockDeviceAccess by writeAccessState(config.blockDevice, resumeKey)
+    val fsRootAccess by writeAccessState(vm, config.fsRoot, resumeKey)
+    val blockDeviceAccess by writeAccessState(vm, config.blockDevice, resumeKey)
 
     val forcedReadOnly =
         fsRootAccess == WriteAccess.READ_ONLY || blockDeviceAccess == WriteAccess.READ_ONLY
+
+    val unreachable =
+        fsRootAccess == WriteAccess.INACCESSIBLE || blockDeviceAccess == WriteAccess.INACCESSIBLE
 
     val pendingProbe =
         (config.fsRoot.isNotBlank() && fsRootAccess == null) ||
@@ -129,7 +131,7 @@ fun ConfigScreen(
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(Modifier.weight(1f)) {
-                    StorageSection(vm, config, enabled, onBrowse)
+                    StorageSection(vm, config, enabled, onBrowse, unreachable)
                     ServerSection(
                         vm,
                         config,
@@ -143,7 +145,7 @@ fun ConfigScreen(
                 }
             }
         } else {
-            StorageSection(vm, config, enabled, onBrowse)
+            StorageSection(vm, config, enabled, onBrowse, unreachable)
             ServerSection(
                 vm,
                 config,
@@ -191,16 +193,16 @@ fun ConfigScreen(
 
 @Composable
 private fun writeAccessState(
+    vm: AppViewModel,
     path: String,
     resumeKey: Int,
 ): State<WriteAccess?> =
-    produceState<WriteAccess?>(initialValue = null, path, resumeKey) {
-        value = null
+    produceState<WriteAccess?>(initialValue = vm.cachedWriteAccess(path), path, resumeKey) {
+        value = vm.cachedWriteAccess(path)
         if (path.isNotBlank()) {
-            value =
-                withTimeoutOrNull(WRITE_PROBE_TIMEOUT_MS) {
-                    withContext(Dispatchers.IO) { probeWriteAccess(File(path)) }
-                } ?: WriteAccess.READ_ONLY
+            val access = probeWriteAccessCapped(File(path))
+            vm.storeWriteAccess(path, access)
+            value = access
         }
     }
 
@@ -210,6 +212,7 @@ private fun StorageSection(
     config: ServerConfig,
     enabled: Boolean,
     onBrowse: (BrowseTarget) -> Unit,
+    unreachable: Boolean = false,
 ) {
     Section(stringResource(R.string.config_section_storage)) {
         PathRow(
@@ -241,6 +244,9 @@ private fun StorageSection(
                 },
         )
         SupportingText(stringResource(R.string.config_share_hint))
+        if (unreachable) {
+            SupportingText(stringResource(R.string.config_location_unreachable))
+        }
     }
 }
 
@@ -367,10 +373,20 @@ private fun PathRow(
     clearLabel: String = "",
     onClear: (() -> Unit)? = null,
 ) {
+    val trash = remember { FocusRequester() }
+    val row = remember { FocusRequester() }
     Row(
         Modifier
             .fillMaxWidth()
-            .focusedClickable(MaterialTheme.shapes.medium, enabled, onClick)
+            .then(
+                if (enabled && onClear != null) {
+                    Modifier
+                        .focusRequester(row)
+                        .focusProperties { right = trash }
+                } else {
+                    Modifier
+                },
+            ).focusedClickable(MaterialTheme.shapes.medium, enabled, onClick)
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -390,7 +406,11 @@ private fun PathRow(
             IconButton(
                 onClick = onClear,
                 enabled = enabled,
-                modifier = Modifier.focusRing(),
+                modifier =
+                    Modifier
+                        .focusProperties { left = row }
+                        .focusRequester(trash)
+                        .focusRing(),
             ) {
                 Icon(Icons.Filled.Delete, contentDescription = clearLabel)
             }
@@ -418,7 +438,7 @@ private fun StepperRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        IconButton(onClick = { onChange((value - step).coerceAtLeast(min)) }, enabled = enabled && value > min) {
+        IconButton(onClick = { onChange((value - step).coerceAtLeast(min)) }, enabled = enabled) {
             Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.action_decrease, title))
         }
         Text(
@@ -438,7 +458,7 @@ private fun StepperRow(
                         },
                     ),
         )
-        IconButton(onClick = { onChange((value + step).coerceAtMost(max)) }, enabled = enabled && value < max) {
+        IconButton(onClick = { onChange((value + step).coerceAtMost(max)) }, enabled = enabled) {
             Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_increase, title))
         }
     }

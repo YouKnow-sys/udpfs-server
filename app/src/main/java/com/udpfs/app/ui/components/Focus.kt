@@ -25,7 +25,7 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 
-private const val FOCUS_STIFFNESS = 2400f
+internal const val FOCUS_STIFFNESS = 2400f
 
 @Composable
 fun Modifier.focusRing(shape: Shape = CircleShape): Modifier {

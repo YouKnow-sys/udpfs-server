@@ -3,21 +3,23 @@
 package com.udpfs.app.ui.screens
 
 import android.Manifest
-import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -32,7 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +43,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -63,9 +69,9 @@ import com.udpfs.app.core.Permissions
 import com.udpfs.app.core.ServerConfig
 import com.udpfs.app.core.ServerService
 import com.udpfs.app.core.ServerStatus
+import com.udpfs.app.ui.components.FOCUS_STIFFNESS
 import com.udpfs.app.ui.components.InfoRow
 import com.udpfs.app.ui.components.SupportingText
-import com.udpfs.app.ui.components.focusRing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -107,7 +113,7 @@ fun ServerScreen(
             ServerStatus.Idle -> {
                 when {
                     !storageGranted -> {
-                        requestStorage(context, requestStoragePerms)
+                        Permissions.requestStorageAccess(context, requestStoragePerms)
                     }
 
                     Permissions.needsNotificationPermission(context) -> {
@@ -128,68 +134,72 @@ fun ServerScreen(
         }
     }
 
-    Column(
+    BoxWithConstraints(
         modifier =
             Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
                 .padding(
                     horizontal = if (isTv) 48.dp else 24.dp,
                     vertical = if (isTv) 32.dp else 16.dp,
                 ),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(if (isTv) 24.dp else 16.dp),
     ) {
-        if (!storageGranted) {
-            StorageGate(onRequest = { requestStorage(context, requestStoragePerms) })
-        }
-
-        if (isTv) {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(56.dp),
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
-                ) {
-                    PowerButton(
-                        running = running,
-                        busy = status is ServerStatus.Starting || status is ServerStatus.Stopping,
-                        size = 252.dp,
-                        onToggle = toggle,
-                    )
-                    StatusText(status, vm)
-                }
-                Column(
-                    Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
-                ) {
-                    if (running) ConnectCard(ip = ip, port = config.port, startAligned = true)
-                    MountCard(mount, config)
-                }
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .heightIn(min = maxHeight),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement =
+                if (isTv) {
+                    Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
+                } else {
+                    Arrangement.spacedBy(16.dp)
+                },
+        ) {
+            if (!storageGranted) {
+                StorageGate(onRequest = { Permissions.requestStorageAccess(context, requestStoragePerms) })
             }
-        } else {
-            PowerButton(
-                running = running,
-                busy = status is ServerStatus.Starting || status is ServerStatus.Stopping,
-                size = 216.dp,
-                onToggle = toggle,
-            )
-            StatusText(status, vm)
-            if (running) ConnectCard(ip = ip, port = config.port, startAligned = false)
-            MountCard(mount, config)
+
+            if (isTv) {
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(56.dp),
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(20.dp),
+                    ) {
+                        PowerButton(
+                            running = running,
+                            busy = status is ServerStatus.Starting || status is ServerStatus.Stopping,
+                            diameter = 252.dp,
+                            onToggle = toggle,
+                        )
+                        StatusText(status, vm)
+                    }
+                    Column(
+                        Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(24.dp),
+                    ) {
+                        if (running) ConnectCard(ip = ip, port = config.port, startAligned = true)
+                        MountCard(mount, config)
+                    }
+                }
+            } else {
+                PowerButton(
+                    running = running,
+                    busy = status is ServerStatus.Starting || status is ServerStatus.Stopping,
+                    diameter = 216.dp,
+                    onToggle = toggle,
+                )
+                StatusText(status, vm)
+                if (running) ConnectCard(ip = ip, port = config.port, startAligned = false)
+                MountCard(mount, config)
+            }
         }
     }
-}
-
-private fun requestStorage(
-    context: Context,
-    launcher: ActivityResultLauncher<Array<String>>,
-) {
-    val legacy = Permissions.legacyStoragePermissions()
-    if (legacy != null) launcher.launch(legacy) else context.startActivity(Permissions.storageSettingsIntent(context))
 }
 
 @Composable
@@ -230,7 +240,7 @@ private fun StatusText(
 private fun PowerButton(
     running: Boolean,
     busy: Boolean,
-    size: Dp,
+    diameter: Dp,
     onToggle: () -> Unit,
 ) {
     val haptics = LocalHapticFeedback.current
@@ -238,18 +248,50 @@ private fun PowerButton(
     val content = if (running) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onPrimaryContainer
     val ring = if (running) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
 
+    var focused by remember { mutableStateOf(false) }
+    val ringWidth by animateDpAsState(
+        targetValue = if (focused) 2.dp else 6.dp,
+        animationSpec = spring(Spring.DampingRatioNoBouncy, FOCUS_STIFFNESS),
+        label = "powerRing",
+    )
+
     Box(
         modifier =
             Modifier
-                .size(size)
-                .shadow(14.dp, CircleShape, ambientColor = ring, spotColor = ring)
-                .focusRing(CircleShape)
-                .clip(CircleShape)
+                .size(diameter)
+                .graphicsLayer {
+                    if (focused) {
+                        scaleX = 1.03f
+                        scaleY = 1.03f
+                    }
+                }.drawBehind {
+                    val halo = size.minDimension / 2 + 14.dp.toPx()
+                    drawCircle(
+                        brush =
+                            Brush.radialGradient(
+                                colors = listOf(ring.copy(alpha = 0.45f), Color.Transparent),
+                                center = center,
+                                radius = halo,
+                            ),
+                        radius = halo,
+                        center = center,
+                    )
+                }.clip(CircleShape)
                 .background(container)
-                .border(5.dp, ring, CircleShape)
-                .clickable(enabled = !busy, role = Role.Button) {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onToggle()
+                .drawBehind {
+                    val w = ringWidth.toPx()
+                    drawCircle(
+                        color = ring,
+                        radius = size.minDimension / 2 - w / 2,
+                        center = center,
+                        style = Stroke(w),
+                    )
+                }.onFocusChanged { focused = it.isFocused }
+                .clickable(role = Role.Button) {
+                    if (!busy) {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onToggle()
+                    }
                 },
         contentAlignment = Alignment.Center,
     ) {
@@ -257,7 +299,7 @@ private fun PowerButton(
             Icon(
                 Icons.Filled.PowerSettingsNew,
                 contentDescription = null,
-                modifier = Modifier.size(if (size > 230.dp) 84.dp else 72.dp),
+                modifier = Modifier.size(if (diameter > 230.dp) 84.dp else 72.dp),
                 tint = content,
             )
             Spacer(Modifier.height(4.dp))
@@ -325,7 +367,7 @@ private fun MountCard(
 ) {
     val root = mount.fsRoot.ifEmpty { config.fsRoot }
     val image = mount.blockDevice.ifEmpty { config.blockDevice }
-    if (root.isBlank() && image.isBlank()) return
+    val notSet = stringResource(R.string.config_not_set)
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
@@ -333,20 +375,20 @@ private fun MountCard(
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (root.isNotBlank()) InfoRow(stringResource(R.string.mount_root), root)
-            if (image.isNotBlank()) {
-                InfoRow(stringResource(R.string.mount_block_device), image)
-                if (mount.totalBytes > 0) {
-                    InfoRow(stringResource(R.string.mount_size), Formatters.bytes(mount.totalBytes))
-                }
+            InfoRow(stringResource(R.string.mount_root), root.ifBlank { notSet })
+            InfoRow(stringResource(R.string.mount_block_device), image.ifBlank { notSet })
+            if (mount.totalBytes > 0) {
+                InfoRow(stringResource(R.string.mount_size), Formatters.bytes(mount.totalBytes))
             }
             InfoRow(
                 stringResource(R.string.mount_mode),
                 if (mount.readOnly || config.readOnly) stringResource(R.string.mount_ro) else stringResource(R.string.mount_rw),
             )
-            if (mount.compressionFormats.isNotEmpty()) {
-                InfoRow(stringResource(R.string.mount_compression), mount.compressionFormats.joinToString(", "))
-            }
+            InfoRow(
+                stringResource(R.string.mount_compression),
+                mount.compressionFormats.takeIf { it.isNotEmpty() }?.joinToString(", ")
+                    ?: stringResource(if (config.enableCompression) R.string.option_on else R.string.option_off),
+            )
         }
     }
 }

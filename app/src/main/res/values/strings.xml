@@ -37,16 +37,18 @@
     <string name="mount_ro">Read-only</string>
     <string name="mount_rw">Read-write</string>
     <string name="mount_compression">Compression</string>
+    <string name="option_on">On</string>
+    <string name="option_off">Off</string>
 
     <string name="config_locked">Stop the server to change these settings</string>
     <string name="config_section_storage">Storage</string>
     <string name="config_section_server">Server</string>
     <string name="config_section_features">Features</string>
     <string name="config_share_hint">Share a folder, a disk image, or both</string>
+    <string name="config_location_unreachable">A selected location can\'t be reached - check that it\'s plugged in or mounted</string>
     <string name="config_fs_root">Filesystem root</string>
     <string name="config_not_set">Not set</string>
     <string name="config_block_device">Disk image</string>
-    <string name="config_no_block_device">Share only the folder</string>
     <string name="config_port">Port</string>
     <string name="config_sector_size">Sector size</string>
     <string name="config_peer_timeout">Peer timeout</string>
@@ -68,9 +70,9 @@
     <string name="config_issue_compression_cache">Compression cache must be at least 1 block</string>
 
     <string name="browser_select_folder">Select %s</string>
-    <string name="browser_none">None</string>
     <string name="browser_no_files">No image files found here</string>
     <string name="browser_no_access">Can\'t read this folder - grant All files access</string>
+    <string name="browser_limited_access">File access is missing - some folders on this device may not show up</string>
     <string name="browser_storage">Storage</string>
     <string name="browser_internal_storage">Internal storage</string>
 

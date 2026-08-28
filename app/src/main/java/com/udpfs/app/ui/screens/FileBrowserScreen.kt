@@ -3,6 +3,12 @@
 package com.udpfs.app.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -23,9 +29,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -43,6 +49,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -53,9 +61,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.udpfs.app.R
 import com.udpfs.app.core.Formatters
+import com.udpfs.app.core.Permissions
 import com.udpfs.app.core.volumeRootPath
 import com.udpfs.app.ui.BrowseMode
 import com.udpfs.app.ui.components.EmptyState
+import com.udpfs.app.ui.components.FOCUS_STIFFNESS
+import com.udpfs.app.ui.components.SupportingText
 import com.udpfs.app.ui.components.focusedClickable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -109,6 +120,10 @@ fun FileBrowserScreen(
 
     var resumeKey by remember { mutableStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumeKey++ }
+
+    val storageGranted = remember(context, resumeKey) { Permissions.hasStorageAccess(context) }
+    val requestStoragePerms =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
 
     val volumes =
         remember(context, resumeKey) {
@@ -206,73 +221,108 @@ fun FileBrowserScreen(
         },
         bottomBar = {
             if (mode == BrowseMode.Directory && !atVolumes) {
+                var focused by remember { mutableStateOf(false) }
+                val scale by animateFloatAsState(
+                    if (focused) 1.05f else 1f,
+                    spring(Spring.DampingRatioNoBouncy, FOCUS_STIFFNESS),
+                    label = "selectScale",
+                )
+                val container by animateColorAsState(
+                    if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+                    label = "selectContainer",
+                )
                 Button(
                     onClick = { onPick(dir.absolutePath) },
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp),
+                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                            .onFocusChanged { focused = it.hasFocus }
+                            .scale(scale),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = container,
+                            contentColor =
+                                if (focused) {
+                                    MaterialTheme.colorScheme.onPrimary
+                                } else {
+                                    MaterialTheme.colorScheme.onPrimaryContainer
+                                },
+                        ),
                 ) {
                     Text(stringResource(R.string.browser_select_folder, dir.name.ifBlank { dir.absolutePath }))
                 }
             }
         },
     ) { padding ->
-        val result = listing
-        when {
-            result == null -> {
-                Box(
-                    Modifier.fillMaxSize().padding(padding),
-                    contentAlignment = Alignment.Center,
-                ) { CircularProgressIndicator() }
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            if (!storageGranted) {
+                AccessBanner(onGrant = { Permissions.requestStorageAccess(context, requestStoragePerms) })
             }
-
-            !result.accessible -> {
-                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Text(
-                        stringResource(R.string.browser_no_access),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+            val result = listing
+            when {
+                result == null -> {
+                    Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) { CircularProgressIndicator() }
                 }
-            }
 
-            result.entries.isEmpty() && mode == BrowseMode.File -> {
-                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Text(
-                        stringResource(R.string.browser_no_files),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            else -> {
-                LazyColumn(Modifier.fillMaxSize().padding(padding)) {
-                    if (mode == BrowseMode.File) {
-                        item {
-                            BrowserRow(
-                                icon = Icons.Filled.RadioButtonUnchecked,
-                                name = stringResource(R.string.browser_none),
-                                detail = stringResource(R.string.config_no_block_device),
-                            ) { onPick("") }
-                        }
+                !result.accessible -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            stringResource(R.string.browser_no_access),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
-                    items(result.entries, key = { it.path }) { entry ->
-                        BrowserRow(
-                            icon =
-                                when {
-                                    atVolumes -> Icons.Filled.Storage
-                                    entry.isDirectory -> Icons.Filled.Folder
-                                    else -> Icons.AutoMirrored.Outlined.InsertDriveFile
-                                },
-                            name = entry.name,
-                            detail = entry.size,
-                        ) {
-                            if (entry.isDirectory) dirPath = entry.path else onPick(entry.path)
+                }
+
+                result.entries.isEmpty() && mode == BrowseMode.File -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            stringResource(R.string.browser_no_files),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                else -> {
+                    LazyColumn(Modifier.fillMaxSize()) {
+                        items(result.entries, key = { it.path }) { entry ->
+                            BrowserRow(
+                                icon =
+                                    when {
+                                        atVolumes -> Icons.Filled.Storage
+                                        entry.isDirectory -> Icons.Filled.Folder
+                                        else -> Icons.AutoMirrored.Outlined.InsertDriveFile
+                                    },
+                                name = entry.name,
+                                detail = entry.size,
+                            ) {
+                                if (entry.isDirectory) dirPath = entry.path else onPick(entry.path)
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AccessBanner(onGrant: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        SupportingText(
+            stringResource(R.string.browser_limited_access),
+            modifier = Modifier.weight(1f),
+        )
+        Button(onClick = onGrant) { Text(stringResource(R.string.storage_grant)) }
     }
 }
 
