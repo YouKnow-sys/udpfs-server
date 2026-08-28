@@ -42,6 +42,7 @@ fun Modifier.focusRing(shape: Shape = CircleShape): Modifier {
         label = "focusScale",
     )
     val color = MaterialTheme.colorScheme.primary
+    val path = remember { Path() }
     return this
         .onFocusChanged { focused = it.hasFocus }
         .graphicsLayer {
@@ -59,7 +60,7 @@ fun Modifier.focusRing(shape: Shape = CircleShape): Modifier {
                     )
                 translate(strokeInset.toFloat(), strokeInset.toFloat()) {
                     drawPath(
-                        outline.asPath(),
+                        outline.writeTo(path),
                         color,
                         style = Stroke(width.roundToPx().toFloat()),
                     )
@@ -68,11 +69,14 @@ fun Modifier.focusRing(shape: Shape = CircleShape): Modifier {
         }
 }
 
-private fun Outline.asPath(): Path =
-    when (this) {
-        is Outline.Generic -> path
-        is Outline.Rounded -> Path().apply { addRoundRect(roundRect) }
-        is Outline.Rectangle -> Path().apply { addRect(rect) }
+private fun Outline.writeTo(path: Path): Path =
+    path.apply {
+        rewind()
+        when (this@writeTo) {
+            is Outline.Generic -> addPath(this@writeTo.path)
+            is Outline.Rounded -> addRoundRect(roundRect)
+            is Outline.Rectangle -> addRect(rect)
+        }
     }
 
 @Composable
@@ -84,6 +88,7 @@ fun Modifier.focusHighlight(shape: Shape): Modifier {
         label = "focusScale",
     )
     val color = MaterialTheme.colorScheme.secondaryContainer
+    val path = remember { Path() }
     return this
         .onFocusChanged { focused = it.isFocused }
         .graphicsLayer {
@@ -91,7 +96,7 @@ fun Modifier.focusHighlight(shape: Shape): Modifier {
             scaleY = scale
         }.drawBehind {
             if (focused) {
-                drawPath(shape.createOutline(size, layoutDirection, this).asPath(), color)
+                drawPath(shape.createOutline(size, layoutDirection, this).writeTo(path), color)
             }
         }
 }

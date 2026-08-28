@@ -8,10 +8,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Insights
-import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -31,14 +27,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.udpfs.app.AppViewModel
 import com.udpfs.app.R
-import com.udpfs.app.UdpfsApplication
 import com.udpfs.app.ui.screens.ConfigScreen
 import com.udpfs.app.ui.screens.DEFAULT_START
 import com.udpfs.app.ui.screens.FileBrowserScreen
@@ -54,9 +49,7 @@ enum class BrowseTarget { FsRoot, BlockDevice }
 
 @Composable
 fun UdpfsApp() {
-    val context = LocalContext.current
-    val app = context.applicationContext as UdpfsApplication
-    val vm: AppViewModel = viewModel { AppViewModel(app.serverRepository) }
+    val vm: AppViewModel = viewModel(factory = AppViewModel.Factory)
 
     val showStats by vm.config.map { it.showStats }.collectAsStateWithLifecycle(initialValue = true)
 
@@ -79,9 +72,9 @@ fun UdpfsApp() {
     val destinations =
         remember(showStats) {
             buildList {
-                add(Screen.Server to Icons.Filled.PowerSettingsNew)
-                add(Screen.Config to Icons.Filled.Tune)
-                if (showStats) add(Screen.Stats to Icons.Filled.Insights)
+                add(Screen.Server to R.drawable.ic_power)
+                add(Screen.Config to R.drawable.ic_tune)
+                if (showStats) add(Screen.Stats to R.drawable.ic_insights)
             }
         }
 
@@ -97,7 +90,7 @@ fun UdpfsApp() {
                         NavigationBarItem(
                             selected = screen == dest,
                             onClick = { screen = dest },
-                            icon = { Icon(icon, contentDescription = null) },
+                            icon = { Icon(painterResource(icon), contentDescription = null) },
                             label = { Text(screenLabel(dest)) },
                         )
                     }
@@ -141,7 +134,7 @@ fun UdpfsApp() {
                                 NavigationRailItem(
                                     selected = screen == dest,
                                     onClick = { screen = dest },
-                                    icon = { Icon(icon, contentDescription = null) },
+                                    icon = { Icon(painterResource(icon), contentDescription = null) },
                                     label = { Text(screenLabel(dest)) },
                                 )
                             }

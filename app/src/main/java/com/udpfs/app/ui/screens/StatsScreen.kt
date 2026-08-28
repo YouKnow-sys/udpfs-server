@@ -1,6 +1,6 @@
 package com.udpfs.app.ui.screens
 
-import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,11 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -40,6 +35,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -53,15 +49,23 @@ import com.udpfs.app.core.Formatters
 import com.udpfs.app.core.LogLevel
 import com.udpfs.app.core.LogLine
 import com.udpfs.app.core.PeerSnapshot
+import com.udpfs.app.core.StatsSnapshot
 import com.udpfs.app.ui.components.EmptyState
 import com.udpfs.app.ui.components.InfoRow
 import com.udpfs.app.ui.components.StatRows
 import com.udpfs.app.ui.components.SupportingText
 import com.udpfs.app.ui.components.focusedClickable
+import com.udpfs.app.ui.format.formatAgo
+import com.udpfs.app.ui.format.formatBytes
+import com.udpfs.app.ui.format.formatDuration
+import com.udpfs.app.ui.format.formatRate
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+private const val DPAD_SCROLL_FACTOR = 0.4f
 
 @Composable
 fun StatsScreen(
@@ -83,15 +87,15 @@ fun StatsScreen(
                 Modifier.onKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
                     val viewport = (listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset).toFloat()
-                    val step = viewport * 0.4f
+                    val step = viewport * DPAD_SCROLL_FACTOR
                     when (event.key) {
                         Key.DirectionDown -> {
-                            scope.launch { listState.animateScrollBy(step) }
+                            scope.launch { listState.scrollBy(step) }
                             true
                         }
 
                         Key.DirectionUp -> {
-                            scope.launch { listState.animateScrollBy(-step) }
+                            scope.launch { listState.scrollBy(-step) }
                             true
                         }
 
@@ -109,7 +113,7 @@ fun StatsScreen(
         contentPadding = PaddingValues(start = sidePadding, end = sidePadding, top = 12.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item { HeaderCard(vm) }
+        item { HeaderCard(vm.stats) }
 
         if (isTv) {
             item {
@@ -118,31 +122,31 @@ fun StatsScreen(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    TotalsCard(vm, Modifier.weight(1f))
-                    PeersCard(vm, Modifier.weight(1f))
+                    TotalsCard(vm.stats, Modifier.weight(1f))
+                    PeersCard(vm.stats, Modifier.weight(1f))
                 }
             }
         } else {
-            item { TotalsCard(vm) }
-            item { PeersCard(vm) }
+            item { TotalsCard(vm.stats) }
+            item { PeersCard(vm.stats) }
         }
 
-        item { LogsCard(vm, timeFormat, onExpand = { logExpanded = true }) }
+        item { LogsCard(vm.logs, timeFormat, onExpand = { logExpanded = true }) }
     }
 
     if (logExpanded) {
-        LogDialog(vm = vm, timeFormat = timeFormat, onClose = { logExpanded = false })
+        LogDialog(logs = vm.logs, timeFormat = timeFormat, onClose = { logExpanded = false })
     }
 }
 
 @Composable
-private fun HeaderCard(vm: AppViewModel) {
-    val stats by vm.stats.collectAsStateWithLifecycle()
+private fun HeaderCard(stats: StateFlow<StatsSnapshot>) {
+    val stats by stats.collectAsStateWithLifecycle()
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    stringResource(R.string.stats_uptime, Formatters.duration(stats.uptimeSeconds)),
+                    stringResource(R.string.stats_uptime, formatDuration(Formatters.duration(stats.uptimeSeconds))),
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
@@ -153,23 +157,23 @@ private fun HeaderCard(vm: AppViewModel) {
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    "↑ ${Formatters.bytes(stats.counters.bytesTx)}",
+                    stringResource(R.string.stats_tx_bytes, formatBytes(Formatters.bytes(stats.counters.bytesTx))),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    "↓ ${Formatters.bytes(stats.counters.bytesRx)}",
+                    stringResource(R.string.stats_rx_bytes, formatBytes(Formatters.bytes(stats.counters.bytesRx))),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.secondary,
                 )
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    stringResource(R.string.stats_tx_rate, Formatters.rate(stats.counters.avgTxThroughput)),
+                    stringResource(R.string.stats_tx_rate, formatRate(stats.counters.avgTxThroughput)),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    stringResource(R.string.stats_rx_rate, Formatters.rate(stats.counters.avgRxThroughput)),
+                    stringResource(R.string.stats_rx_rate, formatRate(stats.counters.avgRxThroughput)),
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
@@ -179,10 +183,10 @@ private fun HeaderCard(vm: AppViewModel) {
 
 @Composable
 private fun TotalsCard(
-    vm: AppViewModel,
+    stats: StateFlow<StatsSnapshot>,
     modifier: Modifier = Modifier,
 ) {
-    val stats by vm.stats.collectAsStateWithLifecycle()
+    val stats by stats.collectAsStateWithLifecycle()
     Card(modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
@@ -197,17 +201,17 @@ private fun TotalsCard(
 
 @Composable
 private fun PeersCard(
-    vm: AppViewModel,
+    stats: StateFlow<StatsSnapshot>,
     modifier: Modifier = Modifier,
 ) {
-    val stats by vm.stats.collectAsStateWithLifecycle()
+    val stats by stats.collectAsStateWithLifecycle()
     Card(modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(stringResource(R.string.stats_section_peers), style = MaterialTheme.typography.titleSmall)
             if (stats.peers.isEmpty()) {
                 SupportingText(stringResource(R.string.stats_no_peers))
             } else {
-                stats.peers.forEach { peer -> PeerCard(peer) }
+                stats.peers.forEach { PeerCard(it) }
             }
         }
     }
@@ -226,22 +230,24 @@ private fun PeerCard(peer: PeerSnapshot) {
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(peer.addr, style = MaterialTheme.typography.titleSmall, fontFamily = FontFamily.Monospace)
-                    SupportingText(stringResource(R.string.stats_last_seen, Formatters.ago(peer.lastSeenUnix)))
+                    SupportingText(stringResource(R.string.stats_last_seen, formatAgo(Formatters.ago(peer.lastSeenUnix))))
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        "↑ ${Formatters.rate(peer.counters.avgTxThroughput)}",
+                        stringResource(R.string.stats_tx_bytes, formatRate(peer.counters.avgTxThroughput)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
                     )
                     Text(
-                        "↓ ${Formatters.rate(peer.counters.avgRxThroughput)}",
+                        stringResource(R.string.stats_rx_bytes, formatRate(peer.counters.avgRxThroughput)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.secondary,
                     )
                 }
                 Icon(
-                    if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    painterResource(
+                        if (expanded) R.drawable.ic_keyboard_arrow_up else R.drawable.ic_keyboard_arrow_down,
+                    ),
                     contentDescription = null,
                 )
             }
@@ -249,7 +255,11 @@ private fun PeerCard(peer: PeerSnapshot) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     InfoRow(
                         stringResource(R.string.stats_bytes),
-                        "${Formatters.bytes(peer.counters.bytesTx)} / ${Formatters.bytes(peer.counters.bytesRx)}",
+                        stringResource(
+                            R.string.stats_bytes_pair,
+                            formatBytes(Formatters.bytes(peer.counters.bytesTx)),
+                            formatBytes(Formatters.bytes(peer.counters.bytesRx)),
+                        ),
                     )
                     StatRows(peer.counters)
                 }
@@ -260,11 +270,11 @@ private fun PeerCard(peer: PeerSnapshot) {
 
 @Composable
 private fun LogsCard(
-    vm: AppViewModel,
+    logs: StateFlow<List<LogLine>>,
     timeFormat: DateTimeFormatter,
     onExpand: () -> Unit,
 ) {
-    val logs by vm.logs.collectAsStateWithLifecycle()
+    val logs by logs.collectAsStateWithLifecycle()
     Card(Modifier.fillMaxWidth()) {
         Column {
             Row(
@@ -279,12 +289,12 @@ private fun LogsCard(
                 Box(
                     modifier =
                         Modifier
-                            .size(28.dp)
+                            .size(48.dp)
                             .focusedClickable(MaterialTheme.shapes.small) { onExpand() },
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        Icons.Filled.OpenInFull,
+                        painterResource(R.drawable.ic_open_in_full),
                         contentDescription = stringResource(R.string.stats_logs_expand),
                         modifier = Modifier.size(16.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -317,11 +327,11 @@ private fun LogsCard(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LogDialog(
-    vm: AppViewModel,
+    logs: StateFlow<List<LogLine>>,
     timeFormat: DateTimeFormatter,
     onClose: () -> Unit,
 ) {
-    val logs by vm.logs.collectAsStateWithLifecycle()
+    val logs by logs.collectAsStateWithLifecycle()
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Scaffold(
             topBar = {
@@ -329,7 +339,7 @@ private fun LogDialog(
                     title = { Text(stringResource(R.string.stats_section_logs)) },
                     actions = {
                         IconButton(onClick = onClose) {
-                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_close))
+                            Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.action_close))
                         }
                     },
                 )

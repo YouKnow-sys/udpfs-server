@@ -2,7 +2,7 @@ package com.udpfs.app
 
 import android.app.Application
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
-import com.udpfs.app.core.GomobileBridgeController
+import com.udpfs.app.core.BridgeController
 import com.udpfs.app.core.ServerRepository
 import com.udpfs.app.core.Settings
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +22,7 @@ class UdpfsApplication : Application() {
     val serverRepository: ServerRepository by lazy {
         val appCtx = applicationContext
         ServerRepository(
-            controller = GomobileBridgeController(),
+            controller = BridgeController(),
             configSource = settings.config,
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
             issueText = { reason -> appCtx.getString(reason.resId) },

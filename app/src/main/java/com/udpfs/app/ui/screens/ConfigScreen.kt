@@ -1,36 +1,17 @@
 package com.udpfs.app.ui.screens
 
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Remove
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
@@ -40,15 +21,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -60,16 +35,22 @@ import com.udpfs.app.core.ServerStatus
 import com.udpfs.app.core.WriteAccess
 import com.udpfs.app.core.probeWriteAccessCapped
 import com.udpfs.app.ui.BrowseTarget
+import com.udpfs.app.ui.components.InputDialog
+import com.udpfs.app.ui.components.PathRow
+import com.udpfs.app.ui.components.Section
+import com.udpfs.app.ui.components.SegmentedRow
 import com.udpfs.app.ui.components.SettingRow
+import com.udpfs.app.ui.components.StepperRow
 import com.udpfs.app.ui.components.SupportingText
-import com.udpfs.app.ui.components.focusRing
-import com.udpfs.app.ui.components.focusedClickable
+import com.udpfs.app.ui.components.SwitchRow
 import java.io.File
 
 private enum class EditTarget {
     Port,
     BindIP,
 }
+
+private typealias ConfigUpdate = ((ServerConfig) -> ServerConfig) -> Unit
 
 @Composable
 fun ConfigScreen(
@@ -80,6 +61,7 @@ fun ConfigScreen(
     val config by vm.config.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     val enabled = status is ServerStatus.Idle
+    val update = vm::updateConfig
 
     var resumeKey by remember { mutableStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumeKey++ }
@@ -88,10 +70,10 @@ fun ConfigScreen(
     val blockDeviceAccess by writeAccessState(vm, config.blockDevice, resumeKey)
 
     val forcedReadOnly =
-        fsRootAccess == WriteAccess.READ_ONLY || blockDeviceAccess == WriteAccess.READ_ONLY
+        fsRootAccess == WriteAccess.ReadOnly || blockDeviceAccess == WriteAccess.ReadOnly
 
     val unreachable =
-        fsRootAccess == WriteAccess.INACCESSIBLE || blockDeviceAccess == WriteAccess.INACCESSIBLE
+        fsRootAccess == WriteAccess.Inaccessible || blockDeviceAccess == WriteAccess.Inaccessible
 
     val pendingProbe =
         (config.fsRoot.isNotBlank() && fsRootAccess == null) ||
@@ -117,7 +99,7 @@ fun ConfigScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
+                Icon(painterResource(R.drawable.ic_info), contentDescription = null, tint = MaterialTheme.colorScheme.tertiary)
                 SupportingText(stringResource(R.string.config_locked))
             }
         }
@@ -129,29 +111,29 @@ fun ConfigScreen(
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(Modifier.weight(1f)) {
-                    StorageSection(vm, config, enabled, onBrowse, unreachable)
+                    StorageSection(config, enabled, onBrowse, unreachable, update)
                     ServerSection(
-                        vm,
                         config,
                         enabled,
                         onEditPort = { editing = EditTarget.Port },
                         onEditBindIP = { editing = EditTarget.BindIP },
+                        update = update,
                     )
                 }
                 Column(Modifier.weight(1f)) {
-                    FeaturesSection(vm, config, featuresEnabled, forcedReadOnly)
+                    FeaturesSection(config, featuresEnabled, forcedReadOnly, update)
                 }
             }
         } else {
-            StorageSection(vm, config, enabled, onBrowse, unreachable)
+            StorageSection(config, enabled, onBrowse, unreachable, update)
             ServerSection(
-                vm,
                 config,
                 enabled,
                 onEditPort = { editing = EditTarget.Port },
                 onEditBindIP = { editing = EditTarget.BindIP },
+                update = update,
             )
-            FeaturesSection(vm, config, featuresEnabled, forcedReadOnly)
+            FeaturesSection(config, featuresEnabled, forcedReadOnly, update)
         }
     }
 
@@ -166,7 +148,7 @@ fun ConfigScreen(
                     onDismiss = { editing = null },
                     onConfirm = { value ->
                         value.toIntOrNull()?.let { v ->
-                            vm.updateConfig { it.copy(port = v.coerceIn(1, 65535)) }
+                            update { it.copy(port = v.coerceIn(1, 65535)) }
                             editing = null
                         }
                     },
@@ -180,7 +162,7 @@ fun ConfigScreen(
                     placeholder = stringResource(R.string.config_bind_auto),
                     onDismiss = { editing = null },
                     onConfirm = { value ->
-                        vm.updateConfig { it.copy(bindIP = value.trim()) }
+                        update { it.copy(bindIP = value.trim()) }
                         editing = null
                     },
                 )
@@ -206,15 +188,15 @@ private fun writeAccessState(
 
 @Composable
 private fun StorageSection(
-    vm: AppViewModel,
     config: ServerConfig,
     enabled: Boolean,
     onBrowse: (BrowseTarget) -> Unit,
-    unreachable: Boolean = false,
+    unreachable: Boolean,
+    update: ConfigUpdate,
 ) {
     Section(stringResource(R.string.config_section_storage)) {
         PathRow(
-            icon = Icons.Filled.Folder,
+            icon = painterResource(R.drawable.ic_folder),
             title = stringResource(R.string.config_fs_root),
             value = config.fsRoot.ifBlank { stringResource(R.string.config_not_set) },
             enabled = enabled,
@@ -224,11 +206,11 @@ private fun StorageSection(
                 if (config.fsRoot.isBlank()) {
                     null
                 } else {
-                    { vm.updateConfig { it.copy(fsRoot = "") } }
+                    { update { it.copy(fsRoot = "") } }
                 },
         )
         PathRow(
-            icon = Icons.Filled.Storage,
+            icon = painterResource(R.drawable.ic_storage),
             title = stringResource(R.string.config_block_device),
             value = config.blockDevice.ifBlank { stringResource(R.string.config_not_set) },
             enabled = enabled,
@@ -238,7 +220,7 @@ private fun StorageSection(
                 if (config.blockDevice.isBlank()) {
                     null
                 } else {
-                    { vm.updateConfig { it.copy(blockDevice = "") } }
+                    { update { it.copy(blockDevice = "") } }
                 },
         )
         SupportingText(stringResource(R.string.config_share_hint))
@@ -250,11 +232,11 @@ private fun StorageSection(
 
 @Composable
 private fun ServerSection(
-    vm: AppViewModel,
     config: ServerConfig,
     enabled: Boolean,
     onEditPort: () -> Unit,
     onEditBindIP: () -> Unit,
+    update: ConfigUpdate,
 ) {
     Section(stringResource(R.string.config_section_server)) {
         StepperRow(
@@ -265,7 +247,7 @@ private fun ServerSection(
             max = 65535,
             enabled = enabled,
             onValueClick = onEditPort,
-            onChange = { v -> vm.updateConfig { it.copy(port = v) } },
+            onChange = { v -> update { it.copy(port = v) } },
         )
         SettingRow(stringResource(R.string.config_sector_size)) {
             SegmentedRow(
@@ -273,7 +255,7 @@ private fun ServerSection(
                 selected = config.sectorSize,
                 enabled = enabled,
                 optionLabel = { it.toString() },
-                onSelect = { size -> vm.updateConfig { it.copy(sectorSize = size) } },
+                onSelect = { size -> update { it.copy(sectorSize = size) } },
             )
         }
         StepperRow(
@@ -284,10 +266,10 @@ private fun ServerSection(
             max = 1440,
             enabled = enabled,
             suffix = stringResource(R.string.config_unit_minutes),
-            onChange = { v -> vm.updateConfig { it.copy(peerTimeoutMinutes = v) } },
+            onChange = { v -> update { it.copy(peerTimeoutMinutes = v) } },
         )
         PathRow(
-            icon = Icons.Filled.Info,
+            icon = painterResource(R.drawable.ic_info),
             title = stringResource(R.string.config_bind_ip),
             value = config.bindIP.ifBlank { stringResource(R.string.config_bind_auto) },
             enabled = enabled,
@@ -298,17 +280,17 @@ private fun ServerSection(
 
 @Composable
 private fun FeaturesSection(
-    vm: AppViewModel,
     config: ServerConfig,
     enabled: Boolean,
     forcedReadOnly: Boolean,
+    update: ConfigUpdate,
 ) {
     Section(stringResource(R.string.config_section_features)) {
         SwitchRow(
             title = stringResource(R.string.config_read_only),
             checked = config.readOnly || forcedReadOnly,
             enabled = enabled && !forcedReadOnly,
-            onChange = { v -> vm.updateConfig { it.copy(readOnly = v) } },
+            onChange = { v -> update { it.copy(readOnly = v) } },
         )
         if (forcedReadOnly) {
             SupportingText(stringResource(R.string.config_readonly_forced))
@@ -317,7 +299,7 @@ private fun FeaturesSection(
             title = stringResource(R.string.config_compression),
             checked = config.enableCompression,
             enabled = enabled,
-            onChange = { v -> vm.updateConfig { it.copy(enableCompression = v) } },
+            onChange = { v -> update { it.copy(enableCompression = v) } },
         )
         if (config.enableCompression) {
             StepperRow(
@@ -328,220 +310,20 @@ private fun FeaturesSection(
                 max = 4096,
                 enabled = enabled,
                 suffix = stringResource(R.string.config_unit_blocks),
-                onChange = { v -> vm.updateConfig { it.copy(compressionCacheSize = v) } },
+                onChange = { v -> update { it.copy(compressionCacheSize = v) } },
             )
         }
         SwitchRow(
             title = stringResource(R.string.config_show_stats),
             checked = config.showStats,
             enabled = true,
-            onChange = { v -> vm.updateConfig { it.copy(showStats = v) } },
+            onChange = { v -> update { it.copy(showStats = v) } },
         )
         SwitchRow(
             title = stringResource(R.string.config_auto_start),
             checked = config.autoStart,
             enabled = enabled,
-            onChange = { v -> vm.updateConfig { it.copy(autoStart = v) } },
+            onChange = { v -> update { it.copy(autoStart = v) } },
         )
     }
-}
-
-@Composable
-private fun Section(
-    title: String,
-    content: @Composable () -> Unit,
-) {
-    Column(Modifier.padding(top = 8.dp)) {
-        Text(
-            title,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        content()
-    }
-}
-
-@Composable
-private fun PathRow(
-    icon: ImageVector,
-    title: String,
-    value: String,
-    enabled: Boolean,
-    onClick: () -> Unit,
-    clearLabel: String = "",
-    onClear: (() -> Unit)? = null,
-) {
-    val trash = remember { FocusRequester() }
-    val row = remember { FocusRequester() }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .then(
-                if (enabled && onClear != null) {
-                    Modifier
-                        .focusRequester(row)
-                        .focusProperties { right = trash }
-                } else {
-                    Modifier
-                },
-            ).focusedClickable(MaterialTheme.shapes.medium, enabled, onClick)
-            .padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                value,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        if (onClear != null) {
-            IconButton(
-                onClick = onClear,
-                enabled = enabled,
-                modifier =
-                    Modifier
-                        .focusProperties { left = row }
-                        .focusRequester(trash)
-                        .focusRing(),
-            ) {
-                Icon(Icons.Filled.Delete, contentDescription = clearLabel)
-            }
-        }
-        if (enabled) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
-        }
-    }
-}
-
-@Composable
-private fun StepperRow(
-    title: String,
-    value: Int,
-    step: Int,
-    min: Int,
-    max: Int,
-    enabled: Boolean,
-    suffix: String = "",
-    onValueClick: (() -> Unit)? = null,
-    onChange: (Int) -> Unit,
-) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        IconButton(onClick = { onChange((value - step).coerceAtLeast(min)) }, enabled = enabled) {
-            Icon(Icons.Filled.Remove, contentDescription = stringResource(R.string.action_decrease, title))
-        }
-        Text(
-            "$value$suffix",
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center,
-            modifier =
-                Modifier
-                    .width(92.dp)
-                    .then(
-                        if (onValueClick != null && enabled) {
-                            Modifier
-                                .focusedClickable(MaterialTheme.shapes.small) { onValueClick() }
-                                .padding(vertical = 4.dp)
-                        } else {
-                            Modifier
-                        },
-                    ),
-        )
-        IconButton(onClick = { onChange((value + step).coerceAtMost(max)) }, enabled = enabled) {
-            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.action_increase, title))
-        }
-    }
-}
-
-@Composable
-private fun SwitchRow(
-    title: String,
-    checked: Boolean,
-    enabled: Boolean,
-    onChange: (Boolean) -> Unit,
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .toggleable(
-                value = checked,
-                interactionSource = interactionSource,
-                indication = null,
-                enabled = enabled,
-                role = Role.Switch,
-                onValueChange = onChange,
-            ).padding(vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Switch(
-            checked = checked,
-            onCheckedChange = null,
-            enabled = enabled,
-            interactionSource = interactionSource,
-        )
-    }
-}
-
-@Composable
-private fun <T> SegmentedRow(
-    options: List<T>,
-    selected: T,
-    enabled: Boolean,
-    optionLabel: @Composable (T) -> String,
-    onSelect: (T) -> Unit,
-) {
-    SingleChoiceSegmentedButtonRow {
-        options.forEachIndexed { index, option ->
-            SegmentedButton(
-                selected = option == selected,
-                onClick = { onSelect(option) },
-                enabled = enabled,
-                shape = SegmentedButtonDefaults.itemShape(index, options.size),
-                label = { Text(optionLabel(option)) },
-            )
-        }
-    }
-}
-
-@Composable
-private fun InputDialog(
-    title: String,
-    initial: String,
-    placeholder: String? = null,
-    keyboardType: KeyboardType = KeyboardType.Uri,
-    transform: (String) -> String = { it },
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-) {
-    var text by remember { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = transform(it) },
-                singleLine = true,
-                placeholder = placeholder?.let { { Text(it) } },
-                keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(text) }) { Text(stringResource(R.string.action_save)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-        },
-    )
 }

@@ -71,34 +71,21 @@ data class LogLine(
     val message: String,
 )
 
-interface BridgeController {
-    fun start(config: ServerConfig)
-
-    fun stop()
-
-    fun stats(): StatsSnapshot
-
-    fun mount(): MountSnapshot
-
-    fun setLogger(logger: (level: LogLevel, message: String) -> Unit)
-
-    fun localIP(): String
-}
-
-class GomobileBridgeController : BridgeController {
+class BridgeController {
+    @Volatile
     private var logger: ((level: LogLevel, message: String) -> Unit)? = null
 
-    private val delegateHolder =
-        lazy {
-            Udpfsbridge.newServer().also(::attachLogger)
+    private val delegate: ServerController by lazy {
+        Udpfsbridge.newServer().also { server ->
+            server.setLogger { level, message -> logger?.invoke(LogLevel.of(level), message) }
         }
-    private val delegate: ServerController by delegateHolder
+    }
 
-    override fun start(config: ServerConfig) = delegate.start(config.toBridgeConfig())
+    fun start(config: ServerConfig) = delegate.start(config.toBridgeConfig())
 
-    override fun stop() = delegate.stop()
+    fun stop() = delegate.stop()
 
-    override fun stats(): StatsSnapshot {
+    fun stats(): StatsSnapshot {
         val s = delegate.stats()
         val peers =
             buildList {
@@ -109,19 +96,13 @@ class GomobileBridgeController : BridgeController {
         return s.toSnapshot(peers)
     }
 
-    override fun mount(): MountSnapshot = delegate.mountInfo().toSnapshot(delegate.compressionFormats().toFormatList())
+    fun mount(): MountSnapshot = delegate.mountInfo().toSnapshot(delegate.compressionFormats().toFormatList())
 
-    override fun setLogger(logger: (level: LogLevel, message: String) -> Unit) {
+    fun setLogger(logger: (level: LogLevel, message: String) -> Unit) {
         this.logger = logger
-        if (delegateHolder.isInitialized()) attachLogger(delegate)
     }
 
-    override fun localIP(): String = Udpfsbridge.getLocalIP()
-
-    private fun attachLogger(server: ServerController) {
-        val logger = this.logger ?: return
-        server.setLogger { level, message -> logger(LogLevel.of(level), message) }
-    }
+    fun localIP(): String = Udpfsbridge.getLocalIP()
 }
 
 private fun ServerConfig.toBridgeConfig(): Config {

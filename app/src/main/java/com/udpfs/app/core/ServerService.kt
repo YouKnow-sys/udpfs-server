@@ -27,13 +27,12 @@ class ServerService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var lastStartId = 0
     private var observing = false
-    private lateinit var notifications: NotificationManager
+    private val notifications: NotificationManager by lazy { getSystemService(NotificationManager::class.java) }
 
     private var lastIP = ""
 
     override fun onCreate() {
         repo = (application as UdpfsApplication).serverRepository
-        notifications = getSystemService(NotificationManager::class.java)
         notifications.createNotificationChannel(
             NotificationChannel(CHANNEL_ID, getString(R.string.channel_name), NotificationManager.IMPORTANCE_LOW),
         )

@@ -2,9 +2,14 @@ package com.udpfs.app
 
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.udpfs.app.core.ServerConfig
 import com.udpfs.app.core.ServerRepository
 import com.udpfs.app.core.WriteAccess
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class AppViewModel(
     private val repo: ServerRepository,
@@ -17,6 +22,18 @@ class AppViewModel(
     val errors = repo.errors
 
     fun updateConfig(transform: (ServerConfig) -> ServerConfig) = repo.updateConfig(transform)
+
+    suspend fun localIP(): String = withContext(Dispatchers.IO) { repo.localIP() }
+
+    companion object {
+        val Factory: ViewModelProvider.Factory =
+            viewModelFactory {
+                initializer {
+                    val app = this[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as UdpfsApplication
+                    AppViewModel(app.serverRepository)
+                }
+            }
+    }
 
     private val writeAccessCache = mutableStateMapOf<String, WriteAccess>()
 

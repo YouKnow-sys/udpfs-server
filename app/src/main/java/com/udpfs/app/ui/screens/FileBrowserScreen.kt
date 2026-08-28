@@ -23,11 +23,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,8 +44,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,6 +62,7 @@ import com.udpfs.app.ui.components.EmptyState
 import com.udpfs.app.ui.components.FOCUS_STIFFNESS
 import com.udpfs.app.ui.components.SupportingText
 import com.udpfs.app.ui.components.focusedClickable
+import com.udpfs.app.ui.format.formatBytes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -75,7 +72,6 @@ const val DEFAULT_START = "/storage/emulated/0"
 private val BLOCK_EXTENSIONS = listOf(".iso", ".bin", ".img", ".zso", ".cso", ".vhd")
 
 private val VOLUME_PARENTS = setOf("/", "/storage", "/storage/emulated")
-private const val PRIMARY_ROOT = "/storage/emulated/0"
 
 private data class Entry(
     val path: String,
@@ -102,50 +98,69 @@ fun FileBrowserScreen(
     val context = LocalContext.current
     val internalLabel = stringResource(R.string.browser_internal_storage)
 
-    val initial =
-        remember(startPath) {
-            File(startPath).let { f ->
-                when {
-                    f.isDirectory -> f
-                    f.isFile -> f.parentFile ?: File(DEFAULT_START)
-                    else -> File(DEFAULT_START)
-                }
-            }
-        }
-    var dirPath by rememberSaveable { mutableStateOf(initial.absolutePath) }
-    val dir = File(dirPath)
+    var dirPath by rememberSaveable { mutableStateOf(startPath.ifBlank { DEFAULT_START }) }
     val atVolumes = dirPath in VOLUME_PARENTS
 
     var resumeKey by remember { mutableStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumeKey++ }
 
-    val storageGranted = remember(context, resumeKey) { Permissions.hasStorageAccess(context) }
+    var storageGranted by remember(context, resumeKey) { mutableStateOf(Permissions.hasStorageAccess(context)) }
     val requestStoragePerms =
-        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {}
-
-    val volumes =
-        remember(context, resumeKey) {
-            buildList {
-                File(PRIMARY_ROOT).takeIf { it.exists() }?.let { add(it) }
-                context.getExternalFilesDirs(null).forEach { dirFile ->
-                    val root =
-                        dirFile
-                            ?.let { volumeRootPath(it.absolutePath, context.packageName) }
-                            ?.let(::File)
-                            ?.takeIf { it.exists() && it.absolutePath != PRIMARY_ROOT }
-                    if (root != null) add(root)
-                }
-            }.distinct()
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+            storageGranted = Permissions.hasStorageAccess(context)
         }
 
+    val volumes by produceState(initialValue = emptyList<File>(), context, resumeKey) {
+        value =
+            withContext(Dispatchers.IO) {
+                buildList {
+                    File(DEFAULT_START).takeIf { it.exists() }?.let { add(it) }
+                    context.getExternalFilesDirs(null).forEach { dirFile ->
+                        val root =
+                            dirFile
+                                ?.let { volumeRootPath(it.absolutePath, context.packageName) }
+                                ?.let(::File)
+                                ?.takeIf { it.exists() && it.absolutePath != DEFAULT_START }
+                        if (root != null) add(root)
+                    }
+                }.distinct()
+            }
+    }
+
     BackHandler {
-        when {
-            atVolumes -> onDismiss()
-            else -> dir.parentFile?.let { dirPath = it.absolutePath } ?: onDismiss()
+        if (atVolumes) {
+            onDismiss()
+        } else {
+            File(dirPath).parentFile?.let { dirPath = it.absolutePath } ?: onDismiss()
         }
     }
 
     val listing by produceState<Listing?>(initialValue = null, dirPath, mode, volumes, resumeKey) {
+        val corrected =
+            withContext(Dispatchers.IO) {
+                if (atVolumes) {
+                    File(dirPath)
+                } else {
+                    val f = File(dirPath)
+                    when {
+                        f.isDirectory -> {
+                            f
+                        }
+
+                        f.isFile -> {
+                            f.parentFile ?: File(DEFAULT_START)
+                        }
+
+                        else -> {
+                            File(DEFAULT_START)
+                        }
+                    }
+                }
+            }
+        if (corrected.absolutePath != dirPath) {
+            dirPath = corrected.absolutePath
+            return@produceState
+        }
         value =
             withContext(Dispatchers.IO) {
                 if (atVolumes) {
@@ -154,7 +169,7 @@ fun FileBrowserScreen(
                             volumes.map { v ->
                                 Entry(
                                     path = v.absolutePath,
-                                    name = if (v.absolutePath == PRIMARY_ROOT) internalLabel else v.name,
+                                    name = if (v.absolutePath == DEFAULT_START) internalLabel else v.name,
                                     isDirectory = true,
                                     size = null,
                                 )
@@ -162,20 +177,7 @@ fun FileBrowserScreen(
                         accessible = true,
                     )
                 } else {
-                    dir
-                        .listFiles()
-                        ?.map { f ->
-                            Entry(
-                                path = f.absolutePath,
-                                name = f.name,
-                                isDirectory = f.isDirectory,
-                                size = if (f.isFile) Formatters.bytes(f.length()) else null,
-                            )
-                        }?.filter { e ->
-                            e.isDirectory || (mode == BrowseMode.File && BLOCK_EXTENSIONS.any { e.name.lowercase().endsWith(it) })
-                        }?.sortedWith(compareByDescending<Entry> { it.isDirectory }.thenBy { it.name.lowercase() })
-                        ?.let { Listing(entries = it, accessible = true) }
-                        ?: LISTING_UNREADABLE
+                    listEntries(corrected, mode) { formatBytes(context, Formatters.bytes(it)) }
                 }
             }
     }
@@ -190,7 +192,7 @@ fun FileBrowserScreen(
                             if (atVolumes) {
                                 stringResource(R.string.browser_storage)
                             } else {
-                                dir.name.ifBlank { "/" }
+                                File(dirPath).name.ifBlank { "/" }
                             },
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -198,22 +200,12 @@ fun FileBrowserScreen(
                     },
                     actions = {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_close))
+                            Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.action_close))
                         }
                     },
                 )
-                if (atVolumes) {
-                    Row(
-                        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(horizontal = 16.dp, vertical = 8.dp),
-                    ) {
-                        Text(
-                            stringResource(R.string.browser_storage),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
-                } else {
-                    Breadcrumb(dir = dir) { dirPath = it }
+                if (!atVolumes) {
+                    Breadcrumb(path = dirPath) { dirPath = it }
                 }
             }
         },
@@ -230,7 +222,7 @@ fun FileBrowserScreen(
                     label = "selectContainer",
                 )
                 Button(
-                    onClick = { onPick(dir.absolutePath) },
+                    onClick = { onPick(dirPath) },
                     modifier =
                         Modifier
                             .fillMaxWidth()
@@ -248,7 +240,7 @@ fun FileBrowserScreen(
                                 },
                         ),
                 ) {
-                    Text(stringResource(R.string.browser_select_folder, dir.name.ifBlank { dir.absolutePath }))
+                    Text(stringResource(R.string.browser_select_folder, File(dirPath).name.ifBlank { dirPath }))
                 }
             }
         },
@@ -289,11 +281,13 @@ fun FileBrowserScreen(
                         items(result.entries, key = { it.path }) { entry ->
                             BrowserRow(
                                 icon =
-                                    when {
-                                        atVolumes -> Icons.Filled.Storage
-                                        entry.isDirectory -> Icons.Filled.Folder
-                                        else -> Icons.AutoMirrored.Outlined.InsertDriveFile
-                                    },
+                                    painterResource(
+                                        when {
+                                            atVolumes -> R.drawable.ic_storage
+                                            entry.isDirectory -> R.drawable.ic_folder
+                                            else -> R.drawable.ic_insert_drive_file
+                                        },
+                                    ),
                                 name = entry.name,
                                 detail = entry.size,
                             ) {
@@ -324,15 +318,39 @@ private fun AccessBanner(onGrant: () -> Unit) {
     }
 }
 
+private fun listEntries(
+    dir: File,
+    mode: BrowseMode,
+    formatSize: (Long) -> String,
+): Listing {
+    val files = dir.listFiles() ?: return LISTING_UNREADABLE
+    val entries =
+        files
+            .asSequence()
+            .filter { f ->
+                f.isDirectory || (mode == BrowseMode.File && BLOCK_EXTENSIONS.any { f.name.lowercase().endsWith(it) })
+            }.map { f ->
+                val isDir = f.isDirectory
+                Entry(
+                    path = f.absolutePath,
+                    name = f.name,
+                    isDirectory = isDir,
+                    size = if (isDir) null else formatSize(f.length()),
+                )
+            }.sortedWith(compareByDescending<Entry> { it.isDirectory }.thenBy { it.name.lowercase() })
+            .toList()
+    return Listing(entries = entries, accessible = true)
+}
+
 @Composable
 private fun Breadcrumb(
-    dir: File,
+    path: String,
     onNavigate: (String) -> Unit,
 ) {
     val crumbs =
-        remember(dir.absolutePath) {
+        remember(path) {
             buildList {
-                var f: File? = dir
+                var f: File? = File(path)
                 while (f != null) {
                     add(0, f.name.ifBlank { "/" } to f.absolutePath)
                     f = f.parentFile
@@ -378,7 +396,7 @@ private fun Breadcrumb(
 
 @Composable
 private fun BrowserRow(
-    icon: ImageVector,
+    icon: Painter,
     name: String,
     detail: String?,
     onClick: () -> Unit,
@@ -392,7 +410,7 @@ private fun BrowserRow(
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Icon(
-            icon,
+            painter = icon,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.secondary,
             modifier = Modifier.size(22.dp),

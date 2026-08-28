@@ -16,11 +16,11 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.util.concurrent.Executors
 
 enum class WriteAccess {
-    WRITABLE,
+    Writable,
 
-    READ_ONLY,
+    ReadOnly,
 
-    INACCESSIBLE,
+    Inaccessible,
 }
 
 const val WRITE_PROBE_TIMEOUT_MS = 2_500L
@@ -31,7 +31,7 @@ fun probeWriteAccess(target: File): WriteAccess =
     try {
         probeObservedTarget(target)
     } catch (e: Exception) {
-        WriteAccess.READ_ONLY
+        WriteAccess.ReadOnly
     }
 
 private fun probeObservedTarget(target: File): WriteAccess {
@@ -39,9 +39,9 @@ private fun probeObservedTarget(target: File): WriteAccess {
         try {
             Files.readAttributes(target.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
         } catch (e: NoSuchFileException) {
-            return WriteAccess.INACCESSIBLE
+            return WriteAccess.Inaccessible
         } catch (e: FileSystemException) {
-            return WriteAccess.INACCESSIBLE
+            return WriteAccess.Inaccessible
         }
     return if (attributes.isDirectory) probeDirectory(target) else probeFile(target)
 }
@@ -51,11 +51,11 @@ private fun probeDirectory(directory: File): WriteAccess {
     try {
         Files.createFile(probe)
     } catch (e: NoSuchFileException) {
-        return WriteAccess.INACCESSIBLE
+        return WriteAccess.Inaccessible
     } catch (e: AccessDeniedException) {
-        return WriteAccess.READ_ONLY
+        return WriteAccess.ReadOnly
     } catch (e: ReadOnlyFileSystemException) {
-        return WriteAccess.READ_ONLY
+        return WriteAccess.ReadOnly
     }
     val landedAtProbePath =
         try {
@@ -65,23 +65,23 @@ private fun probeDirectory(directory: File): WriteAccess {
             false
         }
     runCatching { Files.deleteIfExists(probe) }
-    return if (landedAtProbePath) WriteAccess.WRITABLE else WriteAccess.READ_ONLY
+    return if (landedAtProbePath) WriteAccess.Writable else WriteAccess.ReadOnly
 }
 
 private fun probeFile(file: File): WriteAccess =
     try {
-        FileChannel.open(file.toPath(), StandardOpenOption.APPEND).use { WriteAccess.WRITABLE }
+        FileChannel.open(file.toPath(), StandardOpenOption.APPEND).use { WriteAccess.Writable }
     } catch (e: NoSuchFileException) {
-        WriteAccess.INACCESSIBLE
+        WriteAccess.Inaccessible
     } catch (e: AccessDeniedException) {
-        WriteAccess.READ_ONLY
+        WriteAccess.ReadOnly
     } catch (e: ReadOnlyFileSystemException) {
-        WriteAccess.READ_ONLY
+        WriteAccess.ReadOnly
     }
 
 private val probeDispatcher =
     Executors
-        .newSingleThreadExecutor { r -> Thread(r, "udpfs-write-probe").apply { isDaemon = true } }
+        .newFixedThreadPool(2) { r -> Thread(r, "udpfs-write-probe").apply { isDaemon = true } }
         .asCoroutineDispatcher()
 
 suspend fun probeWriteAccessCapped(target: File): WriteAccess {
@@ -89,7 +89,7 @@ suspend fun probeWriteAccessCapped(target: File): WriteAccess {
         withTimeoutOrNull(WRITE_PROBE_TIMEOUT_MS) {
             withContext(probeDispatcher) { probeWriteAccess(target) }
         }
-    return access ?: WriteAccess.READ_ONLY
+    return access ?: WriteAccess.ReadOnly
 }
 
-suspend fun forcesReadOnly(path: String): Boolean = path.isNotBlank() && probeWriteAccessCapped(File(path)) == WriteAccess.READ_ONLY
+suspend fun forcesReadOnly(path: String): Boolean = path.isNotBlank() && probeWriteAccessCapped(File(path)) == WriteAccess.ReadOnly

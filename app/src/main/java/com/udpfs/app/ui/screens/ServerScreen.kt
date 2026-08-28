@@ -23,9 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FolderOff
-import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
@@ -43,13 +40,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
@@ -60,7 +60,6 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.udpfs.app.AppViewModel
 import com.udpfs.app.R
-import com.udpfs.app.UdpfsApplication
 import com.udpfs.app.core.Formatters
 import com.udpfs.app.core.MountSnapshot
 import com.udpfs.app.core.Permissions
@@ -70,9 +69,9 @@ import com.udpfs.app.core.ServerStatus
 import com.udpfs.app.ui.components.FOCUS_STIFFNESS
 import com.udpfs.app.ui.components.InfoRow
 import com.udpfs.app.ui.components.SupportingText
-import kotlinx.coroutines.Dispatchers
+import com.udpfs.app.ui.format.formatBytes
+import com.udpfs.app.ui.format.formatDuration
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 fun ServerScreen(
@@ -80,7 +79,6 @@ fun ServerScreen(
     isTv: Boolean = false,
 ) {
     val context = LocalContext.current
-    val repo = (context.applicationContext as UdpfsApplication).serverRepository
     val status by vm.status.collectAsStateWithLifecycle()
     val config by vm.config.collectAsStateWithLifecycle()
     val mount by vm.mount.collectAsStateWithLifecycle()
@@ -88,13 +86,14 @@ fun ServerScreen(
     var storageGranted by remember { mutableStateOf(Permissions.hasStorageAccess(context)) }
     var ip by remember { mutableStateOf("") }
     val running = status is ServerStatus.Running
+    val busy = status is ServerStatus.Starting || status is ServerStatus.Stopping
     LaunchedEffect(running) {
-        ip = withContext(Dispatchers.IO) { repo.localIP() }
+        ip = vm.localIP()
     }
     val scope = rememberCoroutineScope()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         storageGranted = Permissions.hasStorageAccess(context)
-        scope.launch { ip = withContext(Dispatchers.IO) { repo.localIP() } }
+        scope.launch { ip = vm.localIP() }
     }
 
     val requestStoragePerms =
@@ -171,8 +170,8 @@ fun ServerScreen(
                     ) {
                         PowerButton(
                             running = running,
-                            busy = status is ServerStatus.Starting || status is ServerStatus.Stopping,
-                            diameter = 252.dp,
+                            busy = busy,
+                            diameter = PowerDiameterTv,
                             onToggle = toggle,
                         )
                         StatusText(status, vm)
@@ -188,8 +187,8 @@ fun ServerScreen(
             } else {
                 PowerButton(
                     running = running,
-                    busy = status is ServerStatus.Starting || status is ServerStatus.Stopping,
-                    diameter = 216.dp,
+                    busy = busy,
+                    diameter = PowerDiameterMobile,
                     onToggle = toggle,
                 )
                 StatusText(status, vm)
@@ -219,7 +218,7 @@ private fun StatusText(
 
                 ServerStatus.Running -> {
                     if (stats.uptimeSeconds > 0) {
-                        stringResource(R.string.status_running, Formatters.duration(stats.uptimeSeconds))
+                        stringResource(R.string.status_running, formatDuration(Formatters.duration(stats.uptimeSeconds)))
                     } else {
                         stringResource(R.string.status_running_plain)
                     }
@@ -233,6 +232,14 @@ private fun StatusText(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
+
+private val PowerDiameterTv = 252.dp
+private val PowerDiameterMobile = 216.dp
+private val PowerHaloOvershoot = 14.dp
+private const val POWER_HALO_ALPHA = 0.45f
+private const val FOCUSED_POWER_SCALE = 1.03f
+private val PowerIconLarge = 84.dp
+private val PowerIconSmall = 72.dp
 
 @Composable
 private fun PowerButton(
@@ -253,24 +260,30 @@ private fun PowerButton(
         label = "powerRing",
     )
 
+    val density = LocalDensity.current
+    val haloBrush =
+        remember(ring, diameter, density) {
+            val radius = with(density) { (diameter / 2 + PowerHaloOvershoot).toPx() }
+            Brush.radialGradient(
+                colors = listOf(ring.copy(alpha = POWER_HALO_ALPHA), Color.Transparent),
+                center = Offset(radius, radius),
+                radius = radius,
+            )
+        }
+
     Box(
         modifier =
             Modifier
                 .size(diameter)
                 .graphicsLayer {
                     if (focused) {
-                        scaleX = 1.03f
-                        scaleY = 1.03f
+                        scaleX = FOCUSED_POWER_SCALE
+                        scaleY = FOCUSED_POWER_SCALE
                     }
                 }.drawBehind {
-                    val halo = size.minDimension / 2 + 14.dp.toPx()
+                    val halo = size.minDimension / 2 + PowerHaloOvershoot.toPx()
                     drawCircle(
-                        brush =
-                            Brush.radialGradient(
-                                colors = listOf(ring.copy(alpha = 0.45f), Color.Transparent),
-                                center = center,
-                                radius = halo,
-                            ),
+                        brush = haloBrush,
                         radius = halo,
                         center = center,
                     )
@@ -295,9 +308,9 @@ private fun PowerButton(
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                Icons.Filled.PowerSettingsNew,
+                painterResource(R.drawable.ic_power),
                 contentDescription = null,
-                modifier = Modifier.size(if (diameter > 230.dp) 84.dp else 72.dp),
+                modifier = Modifier.size(if (diameter > PowerDiameterMobile) PowerIconLarge else PowerIconSmall),
                 tint = content,
             )
             Spacer(Modifier.height(4.dp))
@@ -345,7 +358,7 @@ private fun StorageGate(onRequest: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Icon(
-                Icons.Filled.FolderOff,
+                painterResource(R.drawable.ic_folder_off),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.tertiary,
             )
@@ -376,7 +389,7 @@ private fun MountCard(
             InfoRow(stringResource(R.string.mount_root), root.ifBlank { notSet })
             InfoRow(stringResource(R.string.mount_block_device), image.ifBlank { notSet })
             if (mount.totalBytes > 0) {
-                InfoRow(stringResource(R.string.mount_size), Formatters.bytes(mount.totalBytes))
+                InfoRow(stringResource(R.string.mount_size), formatBytes(Formatters.bytes(mount.totalBytes)))
             }
             InfoRow(
                 stringResource(R.string.mount_mode),

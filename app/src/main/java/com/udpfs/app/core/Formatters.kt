@@ -1,44 +1,72 @@
 package com.udpfs.app.core
 
-import java.util.Locale
 import kotlin.math.abs
 
 object Formatters {
+    sealed interface ByteValue {
+        data class Plain(
+            val bytes: Long,
+        ) : ByteValue
+
+        data class Scaled(
+            val amount: Double,
+            val unit: String,
+        ) : ByteValue
+    }
+
     private val BYTE_UNITS = arrayOf("KiB", "MiB", "GiB", "TiB")
 
-    fun bytes(v: Long): String {
-        if (abs(v) < 1024) return "$v B"
+    fun bytes(v: Long): ByteValue {
+        if (abs(v) < 1024) return ByteValue.Plain(v)
         var value = v.toDouble()
         for (unit in BYTE_UNITS) {
             value /= 1024
-            if (abs(value) < 1024) return String.format(Locale.US, "%.1f %s", value, unit)
+            if (abs(value) < 1024) return ByteValue.Scaled(value, unit)
         }
-        return String.format(Locale.US, "%.1f PiB", value / 1024)
+        return ByteValue.Scaled(value / 1024, "PiB")
     }
 
-    fun rate(bytesPerSecond: Double): String = if (bytesPerSecond < 1.0) "0 B/s" else bytes(bytesPerSecond.toLong()) + "/s"
+    fun rate(bytesPerSecond: Double): ByteValue = if (bytesPerSecond < 1.0) ByteValue.Plain(0) else bytes(bytesPerSecond.toLong())
 
-    fun duration(totalSeconds: Long): String {
-        val h = totalSeconds / 3600
-        val m = totalSeconds % 3600 / 60
-        val s = totalSeconds % 60
-        return when {
-            h > 0 -> "%dh %02dm %02ds".format(h, m, s)
-            m > 0 -> "%dm %02ds".format(m, s)
-            else -> "${s}s"
-        }
+    data class DurationParts(
+        val hours: Int,
+        val minutes: Int,
+        val seconds: Int,
+    )
+
+    fun duration(totalSeconds: Long): DurationParts =
+        DurationParts(
+            hours = (totalSeconds / 3600).toInt(),
+            minutes = (totalSeconds % 3600 / 60).toInt(),
+            seconds = (totalSeconds % 60).toInt(),
+        )
+
+    sealed interface Ago {
+        data object Now : Ago
+
+        data class Seconds(
+            val value: Long,
+        ) : Ago
+
+        data class Minutes(
+            val value: Long,
+        ) : Ago
+
+        data class Hours(
+            val value: Long,
+        ) : Ago
     }
 
     fun ago(
         unixSeconds: Long,
         nowMillis: Long = System.currentTimeMillis(),
-    ): String {
+    ): Ago {
         val delta = nowMillis / 1000 - unixSeconds
         return when {
-            delta < 5 -> "now"
-            delta < 60 -> "${delta}s ago"
-            delta < 3600 -> "${delta / 60}m ago"
-            else -> "${delta / 3600}h ago"
+            delta < 5 -> Ago.Now
+            delta < 60 -> Ago.Seconds(delta)
+            delta < 3600 -> Ago.Minutes(delta / 60)
+            else -> Ago.Hours(delta / 3600)
         }
     }
 }

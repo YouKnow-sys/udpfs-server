@@ -82,8 +82,23 @@
         <item quantity="other">%s peers</item>
     </plurals>
     <string name="stats_logs_expand">Expand logs</string>
+    <string name="stats_tx_bytes">↑ %1$s</string>
+    <string name="stats_rx_bytes">↓ %1$s</string>
     <string name="stats_tx_rate">↑ avg %s</string>
     <string name="stats_rx_rate">↓ avg %s</string>
+    <string name="stats_bytes_pair">%1$s / %2$s</string>
+
+    <string name="bytes_plain">%1$d B</string>
+    <string name="bytes_scaled">%1$.1f %2$s</string>
+    <string name="rate_zero">0 B/s</string>
+    <string name="rate_format">%1$s/s</string>
+    <string name="duration_hms">%1$dh %2$02dm %3$02ds</string>
+    <string name="duration_ms">%1$dm %2$02ds</string>
+    <string name="duration_s">%1$ds</string>
+    <string name="ago_now">now</string>
+    <string name="ago_seconds">%1$ds ago</string>
+    <string name="ago_minutes">%1$dm ago</string>
+    <string name="ago_hours">%1$dh ago</string>
     <string name="stats_section_totals">Totals</string>
     <string name="stats_section_peers">Peers</string>
     <string name="stats_no_peers">No peers connected</string>

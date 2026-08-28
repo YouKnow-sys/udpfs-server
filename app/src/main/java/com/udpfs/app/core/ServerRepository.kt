@@ -3,11 +3,14 @@ package com.udpfs.app.core
 import android.os.SystemClock
 import android.util.Log
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,8 +45,6 @@ class ServerRepository(
     private val configSource: Flow<ServerConfig>,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val issueText: (ConfigIssueReason) -> String = { it.name },
-    private val clock: () -> Long = SystemClock::elapsedRealtime,
-    private val logger: (String) -> Unit = { Log.w("ServerRepository", it) },
     private val persistConfig: suspend (ServerConfig) -> Unit = {},
 ) {
     private var pollJob: Job? = null
@@ -60,7 +61,9 @@ class ServerRepository(
 
     private val writeMutex = Mutex()
     private val pendingWrites = AtomicInteger(0)
-    private val configVersion = AtomicInteger(0)
+    private val configLock = Any()
+
+    private val configLoaded = CompletableDeferred<Unit>()
 
     private val _stats = MutableStateFlow(StatsSnapshot())
     val stats: StateFlow<StatsSnapshot> = _stats.asStateFlow()
@@ -74,7 +77,7 @@ class ServerRepository(
     val errors = Channel<String>(Channel.BUFFERED)
 
     private fun emitError(message: String) {
-        if (errors.trySend(message).isFailure) logger(message)
+        if (errors.trySend(message).isFailure) Log.w("ServerRepository", message)
     }
 
     private val logBuffer = LogRingBuffer(MAX_LOG_LINES)
@@ -86,7 +89,14 @@ class ServerRepository(
     init {
         controller.setLogger { level, message -> onBridgeLog(level, message) }
         scope.launch {
-            guardCancellations({ configSource.collect { if (pendingWrites.get() == 0) _config.value = it } }) { e ->
+            guardCancellations({
+                configSource.collect {
+                    synchronized(configLock) {
+                        if (pendingWrites.get() == 0) _config.value = it
+                    }
+                    configLoaded.complete(Unit)
+                }
+            }) { e ->
                 emitError("Failed to load settings: ${e.message ?: e.javaClass.simpleName}")
             }
         }
@@ -119,12 +129,20 @@ class ServerRepository(
     }
 
     fun updateConfig(transform: (ServerConfig) -> ServerConfig) {
-        val current = _config.value
-        val next = transform(current)
-        if (next == current) return
-        configVersion.incrementAndGet()
-        _config.value = next
-        pendingWrites.incrementAndGet()
+        if (!configLoaded.isCompleted) {
+            scope.launch {
+                configLoaded.await()
+                updateConfig(transform)
+            }
+            return
+        }
+        synchronized(configLock) {
+            val current = _config.value
+            val next = transform(current)
+            if (next == current) return
+            _config.value = next
+            pendingWrites.incrementAndGet()
+        }
         scope.launch {
             writeMutex.withLock {
                 try {
@@ -136,12 +154,13 @@ class ServerRepository(
                     pendingWrites.decrementAndGet()
                 }
                 if (pendingWrites.get() == 0) {
-                    val version = configVersion.get()
                     val disk =
                         guardCancellations({ configSource.first() }) { e ->
                             emitError("Failed to load settings: ${e.message ?: e.javaClass.simpleName}")
                         } ?: return@withLock
-                    if (configVersion.get() == version) _config.value = disk
+                    synchronized(configLock) {
+                        if (pendingWrites.get() == 0) _config.value = disk
+                    }
                 }
             }
         }
@@ -166,8 +185,7 @@ class ServerRepository(
                     return@launch
                 }
 
-                val effective =
-                    cfg.copy(readOnly = cfg.readOnly || forcesReadOnly(cfg.fsRoot) || forcesReadOnly(cfg.blockDevice))
+                val effective = cfg.copy(readOnly = cfg.readOnly || forcesReadOnlyFor(cfg))
 
                 bridgeMutex.withLock {
                     guardCancellations({ withContext(Dispatchers.IO) { controller.start(effective) } }) { e ->
@@ -220,12 +238,19 @@ class ServerRepository(
 
     suspend fun awaitConfig(): ServerConfig = configSource.first()
 
+    private suspend fun forcesReadOnlyFor(cfg: ServerConfig): Boolean =
+        coroutineScope {
+            val fsRoot = async { forcesReadOnly(cfg.fsRoot) }
+            val blockDevice = async { forcesReadOnly(cfg.blockDevice) }
+            fsRoot.await() || blockDevice.await()
+        }
+
     private fun startPolling() {
         if (pollJob?.isActive == true) return
         pollJob =
             scope.launch {
                 while (isActive) {
-                    val startedAt = clock()
+                    val startedAt = SystemClock.elapsedRealtime()
                     val snapshot =
                         guardCancellations({ withContext(Dispatchers.IO) { controller.stats() } }) { e ->
                             emitError("Stats update failed: ${e.message ?: e.javaClass.simpleName}")
@@ -235,7 +260,7 @@ class ServerRepository(
                             if (_status.value is ServerStatus.Running) _stats.value = snapshot
                         }
                     }
-                    val elapsed = (clock() - startedAt).milliseconds
+                    val elapsed = (SystemClock.elapsedRealtime() - startedAt).milliseconds
                     delay((POLL_INTERVAL_MS - elapsed).coerceAtLeast(ZERO))
                 }
             }
