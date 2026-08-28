@@ -1,6 +1,5 @@
 package com.udpfs.app.core
 
-import android.os.Build
 import android.os.SystemClock
 import com.udpfs.udpfsbridge.Udpfsbridge
 import kotlinx.coroutines.CancellationException
@@ -40,8 +39,6 @@ class ServerRepository(
     private val controller: BridgeController,
     private val configSource: Flow<ServerConfig>,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-    private val sdkInt: Int = Build.VERSION.SDK_INT,
-    private val packageName: String = "",
     private val issueText: (ConfigIssueReason) -> String = { it.name },
 ) {
     private var pollJob: Job? = null
@@ -111,15 +108,8 @@ class ServerRepository(
                     return@launch
                 }
 
-                val effective =
-                    if (forcesReadOnly(sdkInt, cfg.activeStoragePath, packageName)) {
-                        cfg.copy(readOnly = true)
-                    } else {
-                        cfg
-                    }
-
                 bridgeMutex.withLock {
-                    guardCancellations({ withContext(Dispatchers.IO) { controller.start(effective) } }) { e ->
+                    guardCancellations({ withContext(Dispatchers.IO) { controller.start(cfg) } }) { e ->
                         _status.compareAndSet(ServerStatus.Starting, ServerStatus.Idle)
                         errors.trySend(e.message ?: "Failed to start server")
                     } ?: return@launch

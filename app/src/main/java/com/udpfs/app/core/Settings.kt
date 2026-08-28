@@ -15,10 +15,7 @@ import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
 
-enum class StorageMode { Folder, DiskImage }
-
 data class ServerConfig(
-    val storageMode: StorageMode = StorageMode.Folder,
     val fsRoot: String = "",
     val blockDevice: String = "",
     val bindIP: String = "",
@@ -39,23 +36,16 @@ data class ServerConfig(
 enum class ConfigIssueReason(
     @StringRes val resId: Int,
 ) {
-    MissingFolder(R.string.config_issue_missing_folder),
-    MissingBlockDevice(R.string.config_issue_missing_block_device),
+    MissingStorage(R.string.config_issue_missing_storage),
     PortRange(R.string.config_issue_port_range),
     SectorSize(R.string.config_issue_sector_size),
     PeerTimeoutRange(R.string.config_issue_peer_timeout_range),
     CompressionCache(R.string.config_issue_compression_cache),
 }
 
-val ServerConfig.activeStoragePath: String
-    get() = if (storageMode == StorageMode.Folder) fsRoot else blockDevice
-
 fun ServerConfig.validate(): List<ConfigIssueReason> =
     buildList {
-        when (storageMode) {
-            StorageMode.Folder -> if (fsRoot.isBlank()) add(ConfigIssueReason.MissingFolder)
-            StorageMode.DiskImage -> if (blockDevice.isBlank()) add(ConfigIssueReason.MissingBlockDevice)
-        }
+        if (fsRoot.isBlank() && blockDevice.isBlank()) add(ConfigIssueReason.MissingStorage)
         if (port !in 1..65535) add(ConfigIssueReason.PortRange)
         if (sectorSize !in ServerConfig.SECTOR_SIZES) add(ConfigIssueReason.SectorSize)
         if (peerTimeoutMinutes !in 1..1440) add(ConfigIssueReason.PeerTimeoutRange)
@@ -63,7 +53,6 @@ fun ServerConfig.validate(): List<ConfigIssueReason> =
     }
 
 private object Keys {
-    val storageMode = stringPreferencesKey("storage_mode")
     val fsRoot = stringPreferencesKey("fs_root")
     val blockDevice = stringPreferencesKey("block_device")
     val bindIP = stringPreferencesKey("bind_ip")
@@ -81,7 +70,6 @@ private val DEFAULTS = ServerConfig()
 
 internal fun Preferences.toServerConfig() =
     ServerConfig(
-        storageMode = this[Keys.storageMode].toStorageMode(),
         fsRoot = this[Keys.fsRoot] ?: DEFAULTS.fsRoot,
         blockDevice = this[Keys.blockDevice] ?: DEFAULTS.blockDevice,
         bindIP = this[Keys.bindIP] ?: DEFAULTS.bindIP,
@@ -110,7 +98,6 @@ class Settings(
 }
 
 internal fun ServerConfig.writeTo(p: MutablePreferences) {
-    p[Keys.storageMode] = storageMode.name
     p[Keys.fsRoot] = fsRoot
     p[Keys.blockDevice] = blockDevice
     p[Keys.bindIP] = bindIP
@@ -123,5 +110,3 @@ internal fun ServerConfig.writeTo(p: MutablePreferences) {
     p[Keys.showStats] = showStats
     p[Keys.autoStart] = autoStart
 }
-
-private fun String?.toStorageMode(): StorageMode = if (this == StorageMode.DiskImage.name) StorageMode.DiskImage else StorageMode.Folder

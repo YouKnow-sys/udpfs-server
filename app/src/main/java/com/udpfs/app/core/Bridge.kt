@@ -71,8 +71,6 @@ data class LogLine(
     val message: String,
 )
 
-fun ServerConfig.effectiveBridgePaths(): Pair<String, String> = if (storageMode == StorageMode.Folder) fsRoot to "" else "" to blockDevice
-
 class BridgeController {
     private val controller = Udpfsbridge.newServer()
 
@@ -105,7 +103,6 @@ class BridgeController {
 
 fun ServerConfig.toBridgeConfig(): Config {
     val c = Config()
-    val (fsRoot, blockDevice) = effectiveBridgePaths()
     c.fsRoot = fsRoot
     c.blockDevicePath = blockDevice
     c.bindIP = bindIP

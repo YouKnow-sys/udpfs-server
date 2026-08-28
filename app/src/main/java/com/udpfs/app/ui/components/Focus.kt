@@ -85,7 +85,7 @@ fun Modifier.focusHighlight(shape: Shape): Modifier {
     )
     val color = MaterialTheme.colorScheme.secondaryContainer
     return this
-        .onFocusChanged { focused = it.hasFocus }
+        .onFocusChanged { focused = it.isFocused }
         .graphicsLayer {
             scaleX = scale
             scaleY = scale

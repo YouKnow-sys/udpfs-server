@@ -2,7 +2,6 @@
 
 package com.udpfs.app.ui.screens
 
-import android.os.Build
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Remove
@@ -34,32 +34,40 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.udpfs.app.AppViewModel
 import com.udpfs.app.R
 import com.udpfs.app.core.ServerConfig
 import com.udpfs.app.core.ServerStatus
-import com.udpfs.app.core.StorageMode
-import com.udpfs.app.core.activeStoragePath
-import com.udpfs.app.core.forcesReadOnly
+import com.udpfs.app.core.WRITE_PROBE_TIMEOUT_MS
+import com.udpfs.app.core.WriteAccess
+import com.udpfs.app.core.probeWriteAccess
 import com.udpfs.app.ui.BrowseTarget
 import com.udpfs.app.ui.components.SettingRow
 import com.udpfs.app.ui.components.SupportingText
+import com.udpfs.app.ui.components.focusRing
 import com.udpfs.app.ui.components.focusedClickable
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
 
 private enum class EditTarget {
     Port,
@@ -72,12 +80,23 @@ fun ConfigScreen(
     onBrowse: (BrowseTarget) -> Unit,
     isTv: Boolean = false,
 ) {
-    val context = LocalContext.current
     val config by vm.config.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
     val enabled = status is ServerStatus.Idle
 
-    val forcedReadOnly = forcesReadOnly(Build.VERSION.SDK_INT, config.activeStoragePath, context.packageName)
+    var resumeKey by remember { mutableStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumeKey++ }
+
+    val fsRootAccess by writeAccessState(config.fsRoot, resumeKey)
+    val blockDeviceAccess by writeAccessState(config.blockDevice, resumeKey)
+
+    val forcedReadOnly =
+        fsRootAccess == WriteAccess.READ_ONLY || blockDeviceAccess == WriteAccess.READ_ONLY
+
+    val pendingProbe =
+        (config.fsRoot.isNotBlank() && fsRootAccess == null) ||
+            (config.blockDevice.isNotBlank() && blockDeviceAccess == null)
+    val featuresEnabled = enabled && !pendingProbe
 
     var editing by remember { mutableStateOf<EditTarget?>(null) }
 
@@ -120,7 +139,7 @@ fun ConfigScreen(
                     )
                 }
                 Column(Modifier.weight(1f)) {
-                    FeaturesSection(vm, config, enabled, forcedReadOnly)
+                    FeaturesSection(vm, config, featuresEnabled, forcedReadOnly)
                 }
             }
         } else {
@@ -132,7 +151,7 @@ fun ConfigScreen(
                 onEditPort = { editing = EditTarget.Port },
                 onEditBindIP = { editing = EditTarget.BindIP },
             )
-            FeaturesSection(vm, config, enabled, forcedReadOnly)
+            FeaturesSection(vm, config, featuresEnabled, forcedReadOnly)
         }
     }
 
@@ -171,6 +190,21 @@ fun ConfigScreen(
 }
 
 @Composable
+private fun writeAccessState(
+    path: String,
+    resumeKey: Int,
+): State<WriteAccess?> =
+    produceState<WriteAccess?>(initialValue = null, path, resumeKey) {
+        value = null
+        if (path.isNotBlank()) {
+            value =
+                withTimeoutOrNull(WRITE_PROBE_TIMEOUT_MS) {
+                    withContext(Dispatchers.IO) { probeWriteAccess(File(path)) }
+                } ?: WriteAccess.READ_ONLY
+        }
+    }
+
+@Composable
 private fun StorageSection(
     vm: AppViewModel,
     config: ServerConfig,
@@ -178,41 +212,37 @@ private fun StorageSection(
     onBrowse: (BrowseTarget) -> Unit,
 ) {
     Section(stringResource(R.string.config_section_storage)) {
-        SettingRow(stringResource(R.string.config_share)) {
-            SegmentedRow(
-                options = StorageMode.entries,
-                selected = config.storageMode,
-                enabled = enabled,
-                optionLabel = { modeLabel(it) },
-                onSelect = { mode -> vm.updateConfig { it.copy(storageMode = mode) } },
-            )
-        }
-        if (config.storageMode == StorageMode.Folder) {
-            PathRow(
-                icon = Icons.Filled.Folder,
-                title = stringResource(R.string.config_fs_root),
-                value = config.fsRoot.ifBlank { stringResource(R.string.config_not_set) },
-                enabled = enabled,
-                onClick = { onBrowse(BrowseTarget.FsRoot) },
-            )
-        } else {
-            PathRow(
-                icon = Icons.Filled.Storage,
-                title = stringResource(R.string.config_block_device),
-                value = config.blockDevice.ifBlank { stringResource(R.string.config_not_set) },
-                enabled = enabled,
-                onClick = { onBrowse(BrowseTarget.BlockDevice) },
-            )
-        }
+        PathRow(
+            icon = Icons.Filled.Folder,
+            title = stringResource(R.string.config_fs_root),
+            value = config.fsRoot.ifBlank { stringResource(R.string.config_not_set) },
+            enabled = enabled,
+            onClick = { onBrowse(BrowseTarget.FsRoot) },
+            clearLabel = stringResource(R.string.action_clear_fs_root),
+            onClear =
+                if (config.fsRoot.isBlank()) {
+                    null
+                } else {
+                    { vm.updateConfig { it.copy(fsRoot = "") } }
+                },
+        )
+        PathRow(
+            icon = Icons.Filled.Storage,
+            title = stringResource(R.string.config_block_device),
+            value = config.blockDevice.ifBlank { stringResource(R.string.config_not_set) },
+            enabled = enabled,
+            onClick = { onBrowse(BrowseTarget.BlockDevice) },
+            clearLabel = stringResource(R.string.action_clear_block_device),
+            onClear =
+                if (config.blockDevice.isBlank()) {
+                    null
+                } else {
+                    { vm.updateConfig { it.copy(blockDevice = "") } }
+                },
+        )
+        SupportingText(stringResource(R.string.config_share_hint))
     }
 }
-
-@Composable
-private fun modeLabel(mode: StorageMode): String =
-    when (mode) {
-        StorageMode.Folder -> stringResource(R.string.config_mode_folder)
-        StorageMode.DiskImage -> stringResource(R.string.config_mode_image)
-    }
 
 @Composable
 private fun ServerSection(
@@ -334,6 +364,8 @@ private fun PathRow(
     value: String,
     enabled: Boolean,
     onClick: () -> Unit,
+    clearLabel: String = "",
+    onClear: (() -> Unit)? = null,
 ) {
     Row(
         Modifier
@@ -353,6 +385,15 @@ private fun PathRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+        if (onClear != null) {
+            IconButton(
+                onClick = onClear,
+                enabled = enabled,
+                modifier = Modifier.focusRing(),
+            ) {
+                Icon(Icons.Filled.Delete, contentDescription = clearLabel)
+            }
         }
         if (enabled) {
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)

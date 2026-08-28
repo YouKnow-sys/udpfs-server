@@ -63,7 +63,6 @@ import com.udpfs.app.core.Permissions
 import com.udpfs.app.core.ServerConfig
 import com.udpfs.app.core.ServerService
 import com.udpfs.app.core.ServerStatus
-import com.udpfs.app.core.StorageMode
 import com.udpfs.app.ui.components.InfoRow
 import com.udpfs.app.ui.components.SupportingText
 import com.udpfs.app.ui.components.focusRing
@@ -324,9 +323,8 @@ private fun MountCard(
     mount: MountSnapshot,
     config: ServerConfig,
 ) {
-    val folderMode = config.storageMode == StorageMode.Folder
-    val root = mount.fsRoot.ifEmpty { if (folderMode) config.fsRoot else "" }
-    val image = mount.blockDevice.ifEmpty { if (!folderMode) config.blockDevice else "" }
+    val root = mount.fsRoot.ifEmpty { config.fsRoot }
+    val image = mount.blockDevice.ifEmpty { config.blockDevice }
     if (root.isBlank() && image.isBlank()) return
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

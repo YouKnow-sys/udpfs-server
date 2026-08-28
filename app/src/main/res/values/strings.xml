@@ -19,6 +19,8 @@
     <string name="action_close">Close</string>
     <string name="action_decrease">Decrease %1$s</string>
     <string name="action_increase">Increase %1$s</string>
+    <string name="action_clear_fs_root">Clear filesystem root</string>
+    <string name="action_clear_block_device">Clear disk image</string>
 
     <string name="storage_title">File access needed</string>
     <string name="storage_hint">Grant all files access so the server can share folders on this device</string>
@@ -40,20 +42,18 @@
     <string name="config_section_storage">Storage</string>
     <string name="config_section_server">Server</string>
     <string name="config_section_features">Features</string>
-    <string name="config_share">Share</string>
-    <string name="config_mode_folder">Folder</string>
-    <string name="config_mode_image">Disk image</string>
+    <string name="config_share_hint">Share a folder, a disk image, or both</string>
     <string name="config_fs_root">Filesystem root</string>
     <string name="config_not_set">Not set</string>
     <string name="config_block_device">Disk image</string>
-    <string name="config_no_block_device">None - share the folder</string>
+    <string name="config_no_block_device">Share only the folder</string>
     <string name="config_port">Port</string>
     <string name="config_sector_size">Sector size</string>
     <string name="config_peer_timeout">Peer timeout</string>
     <string name="config_bind_ip">Bind address</string>
     <string name="config_bind_auto">Automatic</string>
     <string name="config_read_only">Read-only</string>
-    <string name="config_readonly_forced">Android 9/10 only allow this app to write inside its own folder on this storage. Pick the app\'s Android/data folder for write support.</string>
+    <string name="config_readonly_forced">One of the selected locations does not allow this app to write, so the share will run read-only.</string>
     <string name="config_compression">Compression (ZSO/CSO)</string>
     <string name="config_cache">Decompression cache</string>
     <string name="config_show_stats">Show stats</string>
@@ -61,8 +61,7 @@
     <string name="config_unit_minutes">" min"</string>
     <string name="config_unit_blocks">" blk"</string>
 
-    <string name="config_issue_missing_folder">Select a folder to share</string>
-    <string name="config_issue_missing_block_device">Select a disk image to share</string>
+    <string name="config_issue_missing_storage">Select a folder, a disk image, or both to share</string>
     <string name="config_issue_port_range">Port must be between 1 and 65535</string>
     <string name="config_issue_sector_size">Sector size must be 512, 2048 or 4096</string>
     <string name="config_issue_peer_timeout_range">Peer timeout must be between 1 and 1440 minutes</string>

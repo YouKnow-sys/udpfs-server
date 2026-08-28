@@ -17,7 +17,6 @@ class UdpfsApplication : Application() {
             controller = BridgeController(),
             configSource = settings.config,
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
-            packageName = appCtx.packageName,
             issueText = { reason -> appCtx.getString(reason.resId) },
         )
     }

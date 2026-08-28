@@ -3,7 +3,6 @@
 package com.udpfs.app.ui
 
 import android.content.res.Configuration
-import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,7 +41,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.udpfs.app.AppViewModel
 import com.udpfs.app.R
 import com.udpfs.app.UdpfsApplication
-import com.udpfs.app.core.forcesReadOnly
 import com.udpfs.app.ui.screens.ConfigScreen
 import com.udpfs.app.ui.screens.DEFAULT_START
 import com.udpfs.app.ui.screens.FileBrowserScreen
@@ -118,12 +116,9 @@ fun UdpfsApp() {
                             BrowseTarget.BlockDevice -> config.blockDevice.ifBlank { DEFAULT_START }
                         },
                     onPick = { path ->
-                        val forcedRo = forcesReadOnly(Build.VERSION.SDK_INT, path, context.packageName)
-                        vm.updateConfig {
-                            when (target) {
-                                BrowseTarget.FsRoot -> it.copy(fsRoot = path)
-                                BrowseTarget.BlockDevice -> it.copy(blockDevice = path)
-                            }.let { picked -> if (forcedRo) picked.copy(readOnly = true) else picked }
+                        when (target) {
+                            BrowseTarget.FsRoot -> vm.pickFsRoot(path)
+                            BrowseTarget.BlockDevice -> vm.pickBlockDevice(path)
                         }
                         browseTarget = null
                     },
