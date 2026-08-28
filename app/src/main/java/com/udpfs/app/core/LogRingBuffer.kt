@@ -18,4 +18,7 @@ internal class LogRingBuffer(
 
     @Synchronized
     fun snapshot(): List<LogLine> = buffer.toList()
+
+    @Synchronized
+    fun clear() = buffer.clear()
 }

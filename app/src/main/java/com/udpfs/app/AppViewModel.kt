@@ -25,6 +25,8 @@ class AppViewModel(
 
     suspend fun localIP(): String = withContext(Dispatchers.IO) { repo.localIP() }
 
+    fun clearLogs() = repo.clearLogs()
+
     companion object {
         val Factory: ViewModelProvider.Factory =
             viewModelFactory {

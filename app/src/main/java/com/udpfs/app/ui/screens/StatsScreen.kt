@@ -1,6 +1,5 @@
 package com.udpfs.app.ui.screens
 
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Card
@@ -23,18 +23,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -55,17 +53,15 @@ import com.udpfs.app.ui.components.InfoRow
 import com.udpfs.app.ui.components.StatRows
 import com.udpfs.app.ui.components.SupportingText
 import com.udpfs.app.ui.components.focusedClickable
+import com.udpfs.app.ui.components.tvDpadScroll
 import com.udpfs.app.ui.format.formatAgo
 import com.udpfs.app.ui.format.formatBytes
 import com.udpfs.app.ui.format.formatDuration
 import com.udpfs.app.ui.format.formatRate
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-
-private const val DPAD_SCROLL_FACTOR = 0.4f
 
 @Composable
 fun StatsScreen(
@@ -77,39 +73,13 @@ fun StatsScreen(
 
     val sidePadding = if (isTv) 48.dp else 20.dp
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
 
-    val tvScroll =
-        remember(isTv) {
-            if (!isTv) {
-                Modifier
-            } else {
-                Modifier.onKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                    val viewport = (listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset).toFloat()
-                    val step = viewport * DPAD_SCROLL_FACTOR
-                    when (event.key) {
-                        Key.DirectionDown -> {
-                            scope.launch { listState.scrollBy(step) }
-                            true
-                        }
-
-                        Key.DirectionUp -> {
-                            scope.launch { listState.scrollBy(-step) }
-                            true
-                        }
-
-                        else -> {
-                            false
-                        }
-                    }
-                }
-            }
-        }
+    val lastPeer = remember { FocusRequester() }
+    val logsHeader = remember { FocusRequester() }
 
     LazyColumn(
         state = listState,
-        modifier = Modifier.fillMaxSize().then(tvScroll),
+        modifier = Modifier.fillMaxSize().tvDpadScroll(listState, enabled = isTv),
         contentPadding = PaddingValues(start = sidePadding, end = sidePadding, top = 12.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -123,19 +93,33 @@ fun StatsScreen(
                     verticalAlignment = Alignment.Top,
                 ) {
                     TotalsCard(vm.stats, Modifier.weight(1f))
-                    PeersCard(vm.stats, Modifier.weight(1f))
+                    PeersCard(vm.stats, Modifier.weight(1f), lastPeer = lastPeer, belowPeers = logsHeader)
                 }
             }
         } else {
             item { TotalsCard(vm.stats) }
-            item { PeersCard(vm.stats) }
+            item { PeersCard(vm.stats, lastPeer = lastPeer, belowPeers = logsHeader) }
         }
 
-        item { LogsCard(vm.logs, timeFormat, onExpand = { logExpanded = true }) }
+        item {
+            LogsCard(
+                vm.logs,
+                timeFormat,
+                anchor = logsHeader,
+                up = lastPeer,
+                onClear = vm::clearLogs,
+                onExpand = { logExpanded = true },
+            )
+        }
     }
 
     if (logExpanded) {
-        LogDialog(logs = vm.logs, timeFormat = timeFormat, onClose = { logExpanded = false })
+        LogDialog(
+            logs = vm.logs,
+            timeFormat = timeFormat,
+            onClear = vm::clearLogs,
+            onClose = { logExpanded = false },
+        )
     }
 }
 
@@ -203,6 +187,8 @@ private fun TotalsCard(
 private fun PeersCard(
     stats: StateFlow<StatsSnapshot>,
     modifier: Modifier = Modifier,
+    lastPeer: FocusRequester,
+    belowPeers: FocusRequester,
 ) {
     val stats by stats.collectAsStateWithLifecycle()
     Card(modifier.fillMaxWidth()) {
@@ -211,21 +197,38 @@ private fun PeersCard(
             if (stats.peers.isEmpty()) {
                 SupportingText(stringResource(R.string.stats_no_peers))
             } else {
-                stats.peers.forEach { PeerCard(it) }
+                stats.peers.forEachIndexed { index, peer ->
+                    PeerCard(
+                        peer,
+                        tail = if (index == stats.peers.lastIndex) lastPeer else null,
+                        down = if (index == stats.peers.lastIndex) belowPeers else null,
+                        first = index == 0,
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun PeerCard(peer: PeerSnapshot) {
+private fun PeerCard(
+    peer: PeerSnapshot,
+    tail: FocusRequester?,
+    down: FocusRequester?,
+    first: Boolean,
+) {
     var expanded by remember(peer.addr) { mutableStateOf(false) }
-    Card(Modifier.fillMaxWidth()) {
+    val requester = remember(peer.addr, tail) { tail ?: FocusRequester() }
+    Card(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .focusedClickable(MaterialTheme.shapes.medium) { expanded = !expanded },
+                    .focusRequester(requester)
+                    .focusProperties {
+                        if (first) up = FocusRequester.Cancel
+                        if (down != null) this.down = down
+                    }.focusedClickable(MaterialTheme.shapes.small) { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
@@ -272,13 +275,23 @@ private fun PeerCard(peer: PeerSnapshot) {
 private fun LogsCard(
     logs: StateFlow<List<LogLine>>,
     timeFormat: DateTimeFormatter,
+    anchor: FocusRequester,
+    up: FocusRequester,
+    onClear: () -> Unit,
     onExpand: () -> Unit,
 ) {
     val logs by logs.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    StickToBottom(listState, logs.firstOrNull()?.seq)
     Card(Modifier.fillMaxWidth()) {
         Column {
             Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp, top = 8.dp, end = 10.dp, bottom = 2.dp),
+                Modifier
+                    .fillMaxWidth()
+                    .focusProperties {
+                        this.up = up
+                        down = FocusRequester.Cancel
+                    }.padding(start = 16.dp, top = 8.dp, end = 10.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -286,6 +299,21 @@ private fun LogsCard(
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f),
                 )
+                Box(
+                    modifier =
+                        Modifier
+                            .size(48.dp)
+                            .focusRequester(anchor)
+                            .focusedClickable(MaterialTheme.shapes.small) { onClear() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_delete),
+                        contentDescription = stringResource(R.string.stats_logs_clear),
+                        modifier = Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Box(
                     modifier =
                         Modifier
@@ -309,11 +337,14 @@ private fun LogsCard(
             } else {
                 val recentLogs = remember(logs) { logs.take(100) }
                 LazyColumn(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 12.dp),
+                    state = listState,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                            .padding(horizontal = 16.dp)
+                            .padding(bottom = 12.dp),
+                    reverseLayout = true,
                 ) {
                     items(recentLogs, key = { it.seq }) { line ->
                         LogLineRow(line, timeFormat)
@@ -329,15 +360,22 @@ private fun LogsCard(
 private fun LogDialog(
     logs: StateFlow<List<LogLine>>,
     timeFormat: DateTimeFormatter,
+    onClear: () -> Unit,
     onClose: () -> Unit,
 ) {
     val logs by logs.collectAsStateWithLifecycle()
+    val listState = rememberLazyListState()
+    StickToBottom(listState, logs.firstOrNull()?.seq)
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Scaffold(
+            modifier = Modifier.tvDpadScroll(listState, reversed = true),
             topBar = {
                 TopAppBar(
                     title = { Text(stringResource(R.string.stats_section_logs)) },
                     actions = {
+                        IconButton(onClick = onClear) {
+                            Icon(painterResource(R.drawable.ic_delete), contentDescription = stringResource(R.string.stats_logs_clear))
+                        }
                         IconButton(onClick = onClose) {
                             Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.action_close))
                         }
@@ -349,14 +387,28 @@ private fun LogDialog(
                 EmptyState(stringResource(R.string.stats_no_logs), Modifier.padding(padding))
             } else {
                 LazyColumn(
-                    Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 8.dp),
+                    state = listState,
+                    modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(3.dp),
+                    reverseLayout = true,
                 ) {
                     items(logs, key = { it.seq }) { line ->
                         LogLineRow(line, timeFormat)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StickToBottom(
+    listState: LazyListState,
+    newestKey: Long?,
+) {
+    LaunchedEffect(newestKey) {
+        if (newestKey != null && !listState.isScrollInProgress && listState.firstVisibleItemIndex <= 1) {
+            listState.scrollToItem(0)
         }
     }
 }

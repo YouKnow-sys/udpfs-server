@@ -82,6 +82,7 @@
         <item quantity="other">%s peers</item>
     </plurals>
     <string name="stats_logs_expand">Expand logs</string>
+    <string name="stats_logs_clear">Clear logs</string>
     <string name="stats_tx_bytes">↑ %1$s</string>
     <string name="stats_rx_bytes">↓ %1$s</string>
     <string name="stats_tx_rate">↑ avg %s</string>

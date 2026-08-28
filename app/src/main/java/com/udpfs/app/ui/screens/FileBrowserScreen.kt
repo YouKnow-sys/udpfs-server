@@ -44,6 +44,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -213,12 +214,16 @@ fun FileBrowserScreen(
             if (mode == BrowseMode.Directory && !atVolumes) {
                 var focused by remember { mutableStateOf(false) }
                 val scale by animateFloatAsState(
-                    if (focused) 1.05f else 1f,
+                    if (focused) 1.02f else 1f,
                     spring(Spring.DampingRatioNoBouncy, FOCUS_STIFFNESS),
                     label = "selectScale",
                 )
                 val container by animateColorAsState(
-                    if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer,
+                    if (focused) {
+                        lerp(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.colorScheme.primary, 0.4f)
+                    } else {
+                        MaterialTheme.colorScheme.primaryContainer
+                    },
                     label = "selectContainer",
                 )
                 Button(
@@ -226,18 +231,13 @@ fun FileBrowserScreen(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 12.dp)
+                            .padding(start = 20.dp, top = 12.dp, end = 20.dp, bottom = 20.dp)
                             .onFocusChanged { focused = it.hasFocus }
                             .scale(scale),
                     colors =
                         ButtonDefaults.buttonColors(
                             containerColor = container,
-                            contentColor =
-                                if (focused) {
-                                    MaterialTheme.colorScheme.onPrimary
-                                } else {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                },
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                         ),
                 ) {
                     Text(stringResource(R.string.browser_select_folder, File(dirPath).name.ifBlank { dirPath }))

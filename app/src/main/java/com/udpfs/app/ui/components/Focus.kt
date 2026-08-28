@@ -5,16 +5,20 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Outline
@@ -23,7 +27,14 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 
 internal const val FOCUS_STIFFNESS = 2400f
 
@@ -107,3 +118,40 @@ fun Modifier.focusedClickable(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ): Modifier = focusHighlight(shape).clip(shape).clickable(enabled = enabled, onClick = onClick)
+
+private const val DPAD_SCROLL_FACTOR = 0.4f
+
+@Composable
+fun Modifier.tvDpadScroll(
+    listState: LazyListState,
+    reversed: Boolean = false,
+    enabled: Boolean = true,
+): Modifier {
+    if (!enabled) return Modifier
+    val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
+    return onKeyEvent { event ->
+        if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+        val viewport = (listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset).toFloat()
+        val step = viewport * DPAD_SCROLL_FACTOR * if (reversed) -1f else 1f
+        when (event.key) {
+            Key.DirectionDown -> {
+                if (!focusManager.moveFocus(FocusDirection.Down)) {
+                    scope.launch { listState.scrollBy(step) }
+                }
+                true
+            }
+
+            Key.DirectionUp -> {
+                if (!focusManager.moveFocus(FocusDirection.Up)) {
+                    scope.launch { listState.scrollBy(-step) }
+                }
+                true
+            }
+
+            else -> {
+                false
+            }
+        }
+    }
+}
