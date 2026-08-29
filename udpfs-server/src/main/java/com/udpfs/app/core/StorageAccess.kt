@@ -17,9 +17,7 @@ import java.util.concurrent.Executors
 
 enum class WriteAccess {
     Writable,
-
     ReadOnly,
-
     Inaccessible,
 }
 

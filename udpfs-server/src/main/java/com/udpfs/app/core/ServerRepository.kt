@@ -2,9 +2,12 @@ package com.udpfs.app.core
 
 import android.os.SystemClock
 import android.util.Log
+import androidx.annotation.StringRes
+import com.udpfs.app.R
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -16,7 +19,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -40,11 +42,19 @@ sealed interface ServerStatus {
     data object Stopping : ServerStatus
 }
 
+enum class RepoMessage(
+    @StringRes val resId: Int,
+) {
+    SELF_STOPPED(R.string.error_server_self_stopped),
+    STOP_INCOMPLETE(R.string.error_stop_incomplete),
+}
+
 class ServerRepository(
     private val controller: BridgeController,
     private val configSource: Flow<ServerConfig>,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
     private val issueText: (ConfigIssueReason) -> String = { it.name },
+    private val messageText: (RepoMessage) -> String = { it.name },
     private val persistConfig: suspend (ServerConfig) -> Unit = {},
 ) {
     private var pollJob: Job? = null
@@ -85,22 +95,25 @@ class ServerRepository(
         controller.setLogger { level, message -> onBridgeLog(level, message) }
         scope.launch {
             guardCancellations({
-                configSource.collect {
-                    synchronized(configLock) {
-                        if (pendingWrites.get() == 0) _config.value = it
+                configSource.collect { disk ->
+                    writeMutex.withLock {
+                        synchronized(configLock) {
+                            if (pendingWrites.get() == 0) _config.value = disk
+                        }
+                        configLoaded.complete(Unit)
                     }
-                    configLoaded.complete(Unit)
                 }
             }) { e ->
                 emitError("Failed to load settings: ${e.message ?: e.javaClass.simpleName}")
             }
         }
         scope.launch {
-            combine(status, _config, _stats.subscriptionCount) { st, cfg, collectors ->
-                st is ServerStatus.Running && cfg.showStats && collectors > 0
-            }.distinctUntilChanged().collect { shouldPoll ->
-                if (shouldPoll) startPolling() else stopPolling()
-            }
+            status
+                .map { it is ServerStatus.Running }
+                .distinctUntilChanged()
+                .collect { shouldPoll ->
+                    if (shouldPoll) startPolling() else stopPolling()
+                }
         }
         scope.launch {
             _logs.subscriptionCount
@@ -166,9 +179,8 @@ class ServerRepository(
     }
 
     fun start() {
-        if (!_status.compareAndSet(ServerStatus.Idle, ServerStatus.Starting)) return
         val job =
-            scope.launch {
+            scope.launch(start = CoroutineStart.LAZY) {
                 writeMutex.withLock { }
 
                 val cfg =
@@ -192,7 +204,10 @@ class ServerRepository(
                         emitError(e.message ?: "Failed to start server")
                     } ?: return@launch
 
-                    if (!_status.compareAndSet(ServerStatus.Starting, ServerStatus.Running)) return@launch
+                    if (!_status.compareAndSet(ServerStatus.Starting, ServerStatus.Running)) {
+                        withContext(Dispatchers.IO) { controller.stop() }
+                        return@launch
+                    }
 
                     _stats.value = StatsSnapshot(running = true)
 
@@ -207,6 +222,12 @@ class ServerRepository(
                 }
             }
         startJob.set(job)
+        if (!_status.compareAndSet(ServerStatus.Idle, ServerStatus.Starting)) {
+            startJob.compareAndSet(job, null)
+            job.cancel()
+            return
+        }
+        job.start()
         job.invokeOnCompletion { startJob.compareAndSet(job, null) }
     }
 
@@ -218,20 +239,27 @@ class ServerRepository(
                 if (wasStarting) startJob.get()?.join()
                 bridgeMutex.withLock {
                     withContext(Dispatchers.IO) { controller.stop() }
-                }
-            } catch (e: Exception) {
-                emitError(e.message ?: "Failed to stop server")
-            } finally {
-                bridgeMutex.withLock {
                     _stats.value = StatsSnapshot()
                     _mount.value = MountSnapshot()
                     _status.value = ServerStatus.Idle
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val alive =
+                    guardCancellations({ withContext(Dispatchers.IO) { controller.isRunning() } }) { } ?: false
+                if (alive) {
+                    _status.compareAndSet(ServerStatus.Stopping, ServerStatus.Running)
+                    emitError(messageText(RepoMessage.STOP_INCOMPLETE))
+                } else {
+                    _stats.value = StatsSnapshot()
+                    _mount.value = MountSnapshot()
+                    _status.value = ServerStatus.Idle
+                    emitError(e.message ?: "Failed to stop server")
+                }
             }
         }
     }
-
-    fun peerCount(): Int = controller.peerCount()
 
     fun clearLogs() {
         logBuffer.clear()
@@ -258,9 +286,20 @@ class ServerRepository(
                             emitError("Stats update failed: ${e.message ?: e.javaClass.simpleName}")
                         }
                     if (snapshot != null) {
+                        var selfStopped = false
                         bridgeMutex.withLock {
-                            if (_status.value is ServerStatus.Running) _stats.value = snapshot
+                            if (_status.value is ServerStatus.Running) {
+                                if (snapshot.running) {
+                                    _stats.value = snapshot
+                                } else {
+                                    _stats.value = StatsSnapshot()
+                                    _mount.value = MountSnapshot()
+                                    _status.value = ServerStatus.Idle
+                                    selfStopped = true
+                                }
+                            }
                         }
+                        if (selfStopped) emitError(messageText(RepoMessage.SELF_STOPPED))
                     }
                     val elapsed = (SystemClock.elapsedRealtime() - startedAt).milliseconds
                     delay((POLL_INTERVAL_MS - elapsed).coerceAtLeast(ZERO))

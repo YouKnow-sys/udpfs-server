@@ -26,6 +26,7 @@ class UdpfsApplication : Application() {
             configSource = settings.config,
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
             issueText = { reason -> appCtx.getString(reason.resId) },
+            messageText = { message -> appCtx.getString(message.resId) },
             persistConfig = { settings.set(it) },
         )
     }

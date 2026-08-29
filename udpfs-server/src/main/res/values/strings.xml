@@ -132,4 +132,7 @@
     <string name="notif_stopping">Stopping…</string>
     <string name="notif_idle">Stopped</string>
     <string name="notif_stop">Stop</string>
+
+    <string name="error_server_self_stopped">Server stopped unexpectedly</string>
+    <string name="error_stop_incomplete">Couldn\'t stop the server - it\'s still running, try again</string>
 </resources>

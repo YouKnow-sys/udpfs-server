@@ -17,15 +17,12 @@ import androidx.core.content.ContextCompat
 import com.udpfs.app.MainActivity
 import com.udpfs.app.R
 import com.udpfs.app.UdpfsApplication
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class ServerService : Service() {
     private lateinit var repo: ServerRepository
@@ -107,22 +104,13 @@ class ServerService : Service() {
                     }
 
                     is ServerStatus.Running -> {
-                        var first = true
-                        while (true) {
-                            val peers =
-                                try {
-                                    withContext(Dispatchers.IO) { repo.peerCount() }
-                                } catch (e: CancellationException) {
-                                    throw e
-                                } catch (_: Exception) {
-                                    lastPeers
-                                }
-                            if (first || peers != lastPeers) {
+                        lastPeers = -1
+                        repo.stats.collect { snapshot ->
+                            val peers = snapshot.peerCount
+                            if (peers != lastPeers) {
                                 lastPeers = peers
                                 notifications.notify(NOTIFICATION_ID, buildNotification(st, peers))
                             }
-                            first = false
-                            delay(PEER_POLL_MS)
                         }
                     }
 
@@ -203,8 +191,6 @@ class ServerService : Service() {
     companion object {
         private const val CHANNEL_ID = "server"
         private const val NOTIFICATION_ID = 1
-
-        private const val PEER_POLL_MS = 2_000L
 
         const val ACTION_START = "com.udpfs.app.action.START"
         const val ACTION_STOP = "com.udpfs.app.action.STOP"

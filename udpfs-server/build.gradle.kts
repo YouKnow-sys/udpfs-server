@@ -1,3 +1,18 @@
+import java.util.Properties
+
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val keystoreProperties =
+    Properties().apply {
+        if (keystorePropertiesFile.exists()) keystorePropertiesFile.inputStream().use { load(it) }
+    }
+
+fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
+
+val releaseStoreFile = keystoreProperties.getProperty("storeFile") ?: env("UDPFS_STORE_FILE")
+val releaseStorePassword = keystoreProperties.getProperty("storePassword") ?: env("UDPFS_STORE_PASSWORD")
+val releaseKeyAlias = keystoreProperties.getProperty("keyAlias") ?: env("UDPFS_KEY_ALIAS")
+val releaseKeyPassword = keystoreProperties.getProperty("keyPassword") ?: env("UDPFS_KEY_PASSWORD")
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -34,8 +49,18 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig =
+                if (releaseStoreFile != null && releaseStorePassword != null && releaseKeyAlias != null && releaseKeyPassword != null) {
+                    signingConfigs.create("release") {
+                        storeFile = rootProject.file(releaseStoreFile)
+                        storePassword = releaseStorePassword
+                        keyAlias = releaseKeyAlias
+                        keyPassword = releaseKeyPassword
+                    }
+                } else {
+                    signingConfigs.getByName("debug")
+                }
         }
     }
 

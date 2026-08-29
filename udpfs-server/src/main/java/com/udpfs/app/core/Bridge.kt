@@ -96,7 +96,7 @@ class BridgeController {
         return s.toSnapshot(peers)
     }
 
-    fun peerCount(): Int = delegate.stats().peerCount.toInt()
+    fun isRunning(): Boolean = delegate.stats().running
 
     fun mount(): MountSnapshot = delegate.mountInfo().toSnapshot(delegate.compressionFormats().toFormatList())
 
