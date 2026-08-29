@@ -88,7 +88,9 @@ class ServerRepository(
 
     val errors = Channel<String>(Channel.BUFFERED)
 
-    private val lastError = AtomicReference<String?>(null)
+    private val errorLock = Any()
+    private var lastErrorMessage: String? = null
+    private var lastErrorElapsed = 0L
 
     private val logBuffer = LogRingBuffer(MAX_LOG_LINES)
     private var flushJob: Job? = null
@@ -147,8 +149,19 @@ class ServerRepository(
     }
 
     private fun emitError(message: String) {
-        if (lastError.getAndSet(message) == message) return
-        if (errors.trySend(message).isFailure) Log.w("ServerRepository", message)
+        val now = SystemClock.elapsedRealtime()
+        val suppressed =
+            synchronized(errorLock) {
+                if (message == lastErrorMessage && now - lastErrorElapsed < ERROR_SUPPRESS_MS) {
+                    lastErrorElapsed = now
+                    true
+                } else {
+                    lastErrorMessage = message
+                    lastErrorElapsed = now
+                    false
+                }
+            }
+        if (!suppressed && errors.trySend(message).isFailure) Log.w("ServerRepository", message)
     }
 
     fun updateConfig(transform: (ServerConfig) -> ServerConfig) {
@@ -354,6 +367,7 @@ class ServerRepository(
 }
 
 private const val MAX_LOG_LINES = 200
+private const val ERROR_SUPPRESS_MS = 2_000L
 private val LOG_FLUSH_MS = 250.milliseconds
 private val PERSIST_DEBOUNCE_MS = 300.milliseconds
 private val POLL_INTERVAL_MS = 1_000.milliseconds
