@@ -65,7 +65,7 @@ fun PathRow(
         Modifier
             .fillMaxWidth()
             .focusRequester(row)
-            .focusProperties { right = trash }
+            .focusProperties { if (onClear != null) right = trash }
             .focusedClickable(MaterialTheme.shapes.medium, enabled, onClick)
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
