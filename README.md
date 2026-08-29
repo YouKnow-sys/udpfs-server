@@ -25,4 +25,8 @@ go install golang.org/x/mobile/cmd/gobind@v0.0.0-20260819173332-ba33198847ac
 make install
 ```
 
-`make install-release` for a release build. License: GPL-3.0.
+`make install-release` for a release build. License: MIT.
+
+## Acknowledgments
+
+Built on top of [udpfsd](https://github.com/pcm720/udpfsd) by [pcm720](https://github.com/pcm720).
