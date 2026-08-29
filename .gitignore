@@ -34,5 +34,7 @@ google-services.json
 *.hprof
 
 # Generated Go bridge artifacts
-/app/libs/*.aar
-/app/libs/*.jar
+/udpfs-server/libs/*.aar
+/udpfs-server/libs/*.jar
+
+.kotlin

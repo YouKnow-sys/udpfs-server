@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -301,7 +302,10 @@ private fun DiscoverableCard(startAligned: Boolean) {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            SupportingText(stringResource(R.string.discoverable_hint))
+            SupportingText(
+                stringResource(R.string.discoverable_hint),
+                textAlign = if (startAligned) null else TextAlign.Center,
+            )
         }
     }
 }

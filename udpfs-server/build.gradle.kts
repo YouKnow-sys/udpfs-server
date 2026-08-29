@@ -8,7 +8,6 @@ android {
     namespace = "com.udpfs.app"
 
     compileSdk = 36
-    buildToolsVersion = "37.0.0"
 
     defaultConfig {
         applicationId = "com.udpfs.app"

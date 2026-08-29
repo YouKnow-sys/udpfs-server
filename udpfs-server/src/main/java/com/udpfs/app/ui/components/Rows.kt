@@ -87,11 +87,13 @@ fun EmptyState(
 fun SupportingText(
     text: String,
     modifier: Modifier = Modifier,
+    textAlign: TextAlign? = null,
 ) {
     Text(
         text,
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = textAlign,
         modifier = modifier,
     )
 }

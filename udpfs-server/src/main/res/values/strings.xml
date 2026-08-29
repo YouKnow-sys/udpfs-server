@@ -72,6 +72,7 @@
     <string name="browser_select_folder">Select %s</string>
     <string name="browser_no_files">No image files found here</string>
     <string name="browser_no_access">Can\'t read this folder - grant All files access</string>
+    <string name="browser_restricted">This folder is restricted by the system and can\'t be browsed or shared</string>
     <string name="browser_limited_access">File access is missing - some folders on this device may not show up</string>
     <string name="browser_storage">Storage</string>
     <string name="browser_internal_storage">Internal storage</string>

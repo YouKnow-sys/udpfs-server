@@ -9,9 +9,9 @@ JAVA_HOME ?= $(firstword $(wildcard \
 ))
 export JAVA_HOME
 
-AAR_OUT         := app/libs/udpfsdbridge.aar
-DEBUG_APK_DIR   := app/build/outputs/apk/debug
-RELEASE_APK_DIR := app/build/outputs/apk/release
+AAR_OUT         := udpfs-server/libs/udpfsdbridge.aar
+DEBUG_APK_DIR   := udpfs-server/build/outputs/apk/debug
+RELEASE_APK_DIR := udpfs-server/build/outputs/apk/release
 
 .DELETE_ON_ERROR:
 .PHONY: all aar apk apk-debug apk-release apk-abi install test check clean check-env
@@ -31,7 +31,7 @@ check:
 	$(MAKE) test
 
 aar: check-env
-	@mkdir -p app/libs
+	@mkdir -p udpfs-server/libs
 	ANDROID_HOME="$(ANDROID_HOME)" ANDROID_NDK_HOME="$(ANDROID_NDK_HOME)" \
 	gomobile bind -tags nochd -target=android -androidapi 28 -javapkg=com.udpfs \
 		-ldflags="-s -w" -o "$(AAR_OUT)" ./udpfsdbridge
@@ -46,12 +46,12 @@ apk: apk-debug apk-release
 
 apk-abi: aar
 	./gradlew assembleRelease -PabiSplits=true
-	@ls -la $(RELEASE_APK_DIR)/app-*-release.apk
+	@ls -la $(RELEASE_APK_DIR)/udpfs-server-*-release.apk
 
 install: apk-debug
-	adb install -r "$(DEBUG_APK_DIR)/app-debug.apk"
+	adb install -r "$(DEBUG_APK_DIR)/udpfs-server-debug.apk"
 
 clean:
-	rm -f "$(AAR_OUT)" app/libs/udpfsdbridge-sources.jar app/libs/*.jar
+	rm -f "$(AAR_OUT)" udpfs-server/libs/udpfsdbridge-sources.jar udpfs-server/libs/*.jar
 	rm -rf build
 	./gradlew clean

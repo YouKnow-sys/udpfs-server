@@ -201,6 +201,7 @@ fun FileBrowserScreen(
         },
         bottomBar = {
             if (mode == BrowseMode.Directory && !atVolumes) {
+                val canSelect = listing?.accessible == true
                 var focused by remember { mutableStateOf(false) }
                 val scale by animateFloatAsState(
                     if (focused) 1.02f else 1f,
@@ -217,6 +218,7 @@ fun FileBrowserScreen(
                 )
                 Button(
                     onClick = { onPick(dirPath) },
+                    enabled = canSelect,
                     modifier =
                         Modifier
                             .fillMaxWidth()
@@ -249,7 +251,9 @@ fun FileBrowserScreen(
                 !result.accessible -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
-                            stringResource(R.string.browser_no_access),
+                            stringResource(
+                                if (storageGranted) R.string.browser_restricted else R.string.browser_no_access,
+                            ),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }

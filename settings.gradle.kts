@@ -1,14 +1,12 @@
 pluginManagement {
     repositories {
-        maven("https://cache-redirector.jetbrains.com/dl.google.com/dl/android/maven2") {
-            name = "GoogleMavenMirror"
+        google {
             content {
-                includeGroupByRegex("androidx\\..*")
                 includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google\\.testing.*")
+                includeGroupByRegex("com\\.google.*")
+                includeGroupByRegex("androidx.*")
             }
         }
-        google()
         mavenCentral()
         gradlePluginPortal()
     }
@@ -21,17 +19,10 @@ plugins {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        maven("https://cache-redirector.jetbrains.com/dl.google.com/dl/android/maven2") {
-            name = "GoogleMavenMirror"
-            content {
-                includeGroupByRegex("androidx\\..*")
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google\\.testing.*")
-            }
-        }
         google()
         mavenCentral()
     }
 }
+
 rootProject.name = "udpfs-android"
-include(":app")
+include(":udpfs-server")
