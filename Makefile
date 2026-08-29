@@ -9,7 +9,7 @@ JAVA_HOME ?= $(firstword $(wildcard \
 ))
 export JAVA_HOME
 
-AAR_OUT         := app/libs/udpfsbridge.aar
+AAR_OUT         := app/libs/udpfsdbridge.aar
 DEBUG_APK_DIR   := app/build/outputs/apk/debug
 RELEASE_APK_DIR := app/build/outputs/apk/release
 
@@ -52,6 +52,6 @@ install: apk-debug
 	adb install -r "$(DEBUG_APK_DIR)/app-debug.apk"
 
 clean:
-	rm -f "$(AAR_OUT)" app/libs/udpfsbridge-sources.jar app/libs/*.jar
+	rm -f "$(AAR_OUT)" app/libs/udpfsdbridge-sources.jar app/libs/*.jar
 	rm -rf build
 	./gradlew clean

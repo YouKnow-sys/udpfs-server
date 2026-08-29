@@ -14,10 +14,13 @@ import androidx.core.app.ServiceCompat
 import com.udpfs.app.MainActivity
 import com.udpfs.app.R
 import com.udpfs.app.UdpfsApplication
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -29,7 +32,7 @@ class ServerService : Service() {
     private var observing = false
     private val notifications: NotificationManager by lazy { getSystemService(NotificationManager::class.java) }
 
-    private var lastIP = ""
+    private var lastPeers = 0
 
     override fun onCreate() {
         repo = (application as UdpfsApplication).serverRepository
@@ -56,7 +59,7 @@ class ServerService : Service() {
                 ServiceCompat.startForeground(
                     this,
                     NOTIFICATION_ID,
-                    buildNotification(initial, lastIP),
+                    buildNotification(initial),
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
                 )
                 if (status is ServerStatus.Idle) repo.start()
@@ -79,13 +82,36 @@ class ServerService : Service() {
         if (observing) return
         observing = true
         scope.launch {
-            repo.status.collect { st ->
-                if (st is ServerStatus.Idle) {
-                    stopSelfQuietly()
-                } else {
-                    val ip = withContext(Dispatchers.IO) { repo.localIP() }
-                    if (ip.isNotEmpty()) lastIP = ip
-                    notifications.notify(NOTIFICATION_ID, buildNotification(st, ip))
+            repo.status.collectLatest { st ->
+                when (st) {
+                    is ServerStatus.Idle -> {
+                        stopSelfQuietly()
+                    }
+
+                    is ServerStatus.Running -> {
+                        var first = true
+                        while (true) {
+                            val peers =
+                                try {
+                                    withContext(Dispatchers.IO) { repo.peerCount() }
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (_: Exception) {
+                                    lastPeers
+                                }
+                            if (first || peers != lastPeers) {
+                                lastPeers = peers
+                                notifications.notify(NOTIFICATION_ID, buildNotification(st, peers))
+                            }
+                            first = false
+                            delay(PEER_POLL_MS)
+                        }
+                    }
+
+                    else -> {
+                        lastPeers = 0
+                        notifications.notify(NOTIFICATION_ID, buildNotification(st))
+                    }
                 }
             }
         }
@@ -105,7 +131,7 @@ class ServerService : Service() {
 
     private fun buildNotification(
         status: ServerStatus,
-        ip: String,
+        peers: Int = 0,
     ): Notification {
         val open =
             PendingIntent.getActivity(
@@ -124,10 +150,15 @@ class ServerService : Service() {
         val text =
             when (status) {
                 is ServerStatus.Running -> {
-                    getString(
-                        R.string.notif_running,
-                        "$ip:${repo.activeConfig().port}",
-                    )
+                    if (peers > 0) {
+                        resources.getQuantityString(R.plurals.notif_peers_connected, peers, peers)
+                    } else {
+                        getString(R.string.notif_running)
+                    }
+                }
+
+                is ServerStatus.Starting -> {
+                    getString(R.string.notif_starting)
                 }
 
                 is ServerStatus.Starting -> {
@@ -158,6 +189,8 @@ class ServerService : Service() {
     companion object {
         private const val CHANNEL_ID = "server"
         private const val NOTIFICATION_ID = 1
+
+        private const val PEER_POLL_MS = 2_000L
 
         const val ACTION_START = "com.udpfs.app.action.START"
         const val ACTION_STOP = "com.udpfs.app.action.STOP"

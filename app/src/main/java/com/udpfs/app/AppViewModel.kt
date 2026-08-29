@@ -8,8 +8,6 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.udpfs.app.core.ServerConfig
 import com.udpfs.app.core.ServerRepository
 import com.udpfs.app.core.WriteAccess
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 class AppViewModel(
     private val repo: ServerRepository,
@@ -22,8 +20,6 @@ class AppViewModel(
     val errors = repo.errors
 
     fun updateConfig(transform: (ServerConfig) -> ServerConfig) = repo.updateConfig(transform)
-
-    suspend fun localIP(): String = withContext(Dispatchers.IO) { repo.localIP() }
 
     fun clearLogs() = repo.clearLogs()
 

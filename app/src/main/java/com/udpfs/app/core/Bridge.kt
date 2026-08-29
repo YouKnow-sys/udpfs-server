@@ -1,8 +1,8 @@
 package com.udpfs.app.core
 
-import com.udpfs.udpfsbridge.Config
-import com.udpfs.udpfsbridge.ServerController
-import com.udpfs.udpfsbridge.Udpfsbridge
+import com.udpfs.udpfsdbridge.Config
+import com.udpfs.udpfsdbridge.ServerController
+import com.udpfs.udpfsdbridge.Udpfsdbridge
 
 enum class LogLevel {
     DEBUG,
@@ -76,7 +76,7 @@ class BridgeController {
     private var logger: ((level: LogLevel, message: String) -> Unit)? = null
 
     private val delegate: ServerController by lazy {
-        Udpfsbridge.newServer().also { server ->
+        Udpfsdbridge.newServer().also { server ->
             server.setLogger { level, message -> logger?.invoke(LogLevel.of(level), message) }
         }
     }
@@ -96,13 +96,13 @@ class BridgeController {
         return s.toSnapshot(peers)
     }
 
+    fun peerCount(): Int = delegate.stats().peerCount.toInt()
+
     fun mount(): MountSnapshot = delegate.mountInfo().toSnapshot(delegate.compressionFormats().toFormatList())
 
     fun setLogger(logger: (level: LogLevel, message: String) -> Unit) {
         this.logger = logger
     }
-
-    fun localIP(): String = Udpfsbridge.getLocalIP()
 }
 
 private fun ServerConfig.toBridgeConfig(): Config {
@@ -119,7 +119,7 @@ private fun ServerConfig.toBridgeConfig(): Config {
     return c
 }
 
-private fun com.udpfs.udpfsbridge.Stats.toCounters() =
+private fun com.udpfs.udpfsdbridge.Stats.toCounters() =
     TrafficCounters(
         bytesTx = bytesTx,
         bytesRx = bytesRx,
@@ -138,7 +138,7 @@ private fun com.udpfs.udpfsbridge.Stats.toCounters() =
         resetCount = resetCount,
     )
 
-private fun com.udpfs.udpfsbridge.PeerStats.toCounters() =
+private fun com.udpfs.udpfsdbridge.PeerStats.toCounters() =
     TrafficCounters(
         bytesTx = bytesTx,
         bytesRx = bytesRx,
@@ -157,7 +157,7 @@ private fun com.udpfs.udpfsbridge.PeerStats.toCounters() =
         resetCount = resetCount,
     )
 
-private fun com.udpfs.udpfsbridge.Stats.toSnapshot(peers: List<PeerSnapshot> = emptyList()) =
+private fun com.udpfs.udpfsdbridge.Stats.toSnapshot(peers: List<PeerSnapshot> = emptyList()) =
     StatsSnapshot(
         running = running,
         uptimeSeconds = uptimeSeconds,
@@ -166,14 +166,14 @@ private fun com.udpfs.udpfsbridge.Stats.toSnapshot(peers: List<PeerSnapshot> = e
         peers = peers,
     )
 
-private fun com.udpfs.udpfsbridge.PeerStats.toSnapshot() =
+private fun com.udpfs.udpfsdbridge.PeerStats.toSnapshot() =
     PeerSnapshot(
         addr = addr.orEmpty(),
         lastSeenUnix = lastSeenUnix,
         counters = toCounters(),
     )
 
-private fun com.udpfs.udpfsbridge.MountInfo.toSnapshot(compressionFormats: List<String> = emptyList()) =
+private fun com.udpfs.udpfsdbridge.MountInfo.toSnapshot(compressionFormats: List<String> = emptyList()) =
     MountSnapshot(
         fsRoot = fsRoot.orEmpty(),
         blockDevice = blockDevice.orEmpty(),

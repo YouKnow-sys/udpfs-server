@@ -62,7 +62,7 @@ ktlint {
 }
 
 dependencies {
-    implementation(files("libs/udpfsbridge.aar"))
+    implementation(files("libs/udpfsdbridge.aar"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -84,6 +84,6 @@ tasks.register<Exec>("bridgeAar") {
     commandLine("make", "aar")
     inputs.dir(rootDir.resolve("udpfsdbridge"))
     inputs.files(rootDir.resolve("go.mod"), rootDir.resolve("go.sum"), rootDir.resolve("Makefile"))
-    outputs.file("libs/udpfsbridge.aar")
+    outputs.file("libs/udpfsdbridge.aar")
 }
 tasks.named("preBuild") { dependsOn("bridgeAar") }

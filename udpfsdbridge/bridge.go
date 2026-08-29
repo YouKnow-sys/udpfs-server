@@ -1,10 +1,9 @@
-package udpfsbridge
+package udpfsdbridge
 
 import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"strings"
 	"sync"
 	"time"
@@ -209,20 +208,4 @@ func peerStatsFrom(p server.PeerMetrics) PeerStats {
 	s.Reads = p.UDPFS.CommandCounts[udpfs.MsgReadReq] + p.UDPFS.CommandCounts[udpfs.MsgBreadReq]
 	s.Writes = p.UDPFS.CommandCounts[udpfs.MsgWriteReq] + p.UDPFS.CommandCounts[udpfs.MsgBwriteReq]
 	return s
-}
-
-func GetLocalIP() string {
-	const fallbackIP = "0.0.0.0"
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		return fallbackIP
-	}
-	for _, address := range addrs {
-		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ip := ipnet.IP.To4(); ip != nil {
-				return ip.String()
-			}
-		}
-	}
-	return fallbackIP
 }

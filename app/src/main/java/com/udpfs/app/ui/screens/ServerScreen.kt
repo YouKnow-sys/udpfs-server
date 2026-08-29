@@ -29,11 +29,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,7 +46,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -67,7 +64,6 @@ import com.udpfs.app.ui.components.InfoRow
 import com.udpfs.app.ui.components.SupportingText
 import com.udpfs.app.ui.format.formatBytes
 import com.udpfs.app.ui.format.formatDuration
-import kotlinx.coroutines.launch
 
 @Composable
 fun ServerScreen(
@@ -80,14 +76,10 @@ fun ServerScreen(
     val mount by vm.mount.collectAsStateWithLifecycle()
 
     var storageGranted by remember { mutableStateOf(Permissions.hasStorageAccess(context)) }
-    var ip by remember { mutableStateOf("") }
     val running = status is ServerStatus.Running
     val busy = status is ServerStatus.Starting || status is ServerStatus.Stopping
-    LaunchedEffect(running) { ip = vm.localIP() }
-    val scope = rememberCoroutineScope()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         storageGranted = Permissions.hasStorageAccess(context)
-        scope.launch { ip = vm.localIP() }
     }
 
     val requestStoragePerms =
@@ -174,7 +166,7 @@ fun ServerScreen(
                         Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(24.dp),
                     ) {
-                        if (running) ConnectCard(ip = ip, port = config.port, startAligned = true)
+                        if (running) DiscoverableCard(startAligned = true)
                         MountCard(mount, config)
                     }
                 }
@@ -186,7 +178,7 @@ fun ServerScreen(
                     onToggle = toggle,
                 )
                 StatusText(status, vm)
-                if (running) ConnectCard(ip = ip, port = config.port, startAligned = false)
+                if (running) DiscoverableCard(startAligned = false)
                 MountCard(mount, config)
             }
         }
@@ -298,27 +290,18 @@ private fun PowerButton(
 }
 
 @Composable
-private fun ConnectCard(
-    ip: String,
-    port: Int,
-    startAligned: Boolean,
-) {
+private fun DiscoverableCard(startAligned: Boolean) {
     Card(Modifier.fillMaxWidth()) {
         Column(
             Modifier.fillMaxWidth().padding(if (startAligned) 24.dp else 20.dp),
             horizontalAlignment = if (startAligned) Alignment.Start else Alignment.CenterHorizontally,
         ) {
             Text(
-                stringResource(R.string.connect_title),
+                stringResource(R.string.discoverable_title),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(
-                "$ip:$port",
-                style = if (startAligned) MaterialTheme.typography.headlineLarge else MaterialTheme.typography.headlineMedium,
-                fontFamily = FontFamily.Monospace,
-            )
-            SupportingText(stringResource(R.string.connect_hint))
+            SupportingText(stringResource(R.string.discoverable_hint))
         }
     }
 }

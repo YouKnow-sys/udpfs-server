@@ -231,14 +231,12 @@ class ServerRepository(
         }
     }
 
-    fun localIP(): String = controller.localIP()
+    fun peerCount(): Int = controller.peerCount()
 
     fun clearLogs() {
         logBuffer.clear()
         _logs.value = emptyList()
     }
-
-    fun activeConfig(): ServerConfig = _config.value
 
     suspend fun awaitConfig(): ServerConfig = configSource.first()
 

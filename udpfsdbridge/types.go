@@ -1,4 +1,4 @@
-package udpfsbridge
+package udpfsdbridge
 
 type Logger interface {
 	OnLog(level string, message string)

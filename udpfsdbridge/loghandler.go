@@ -1,4 +1,4 @@
-package udpfsbridge
+package udpfsdbridge
 
 import (
 	"context"

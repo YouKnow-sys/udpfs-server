@@ -26,8 +26,8 @@
     <string name="storage_hint">Grant all files access so the server can share folders on this device</string>
     <string name="storage_grant">Grant</string>
 
-    <string name="connect_title">Connect to this server</string>
-    <string name="connect_hint">Point your UDPFS client at this address</string>
+    <string name="discoverable_title">Server discoverable</string>
+    <string name="discoverable_hint">Start a UDPFS client on the same network; it finds this server automatically by broadcast</string>
 
     <string name="mount_title">Shared filesystem</string>
     <string name="mount_root">Root</string>
@@ -81,6 +81,11 @@
         <item quantity="one">%s peer</item>
         <item quantity="other">%s peers</item>
     </plurals>
+
+    <plurals name="notif_peers_connected">
+        <item quantity="one">%d peer connected</item>
+        <item quantity="other">%d peers connected</item>
+    </plurals>
     <string name="stats_logs_expand">Expand logs</string>
     <string name="stats_logs_clear">Clear logs</string>
     <string name="stats_tx_bytes">↑ %1$s</string>
@@ -120,7 +125,7 @@
 
     <string name="channel_name">Server status</string>
     <string name="notif_title">UDPFS Server</string>
-    <string name="notif_running">Serving on %s</string>
+    <string name="notif_running">Waiting for clients</string>
     <string name="notif_starting">Starting…</string>
     <string name="notif_stopping">Stopping…</string>
     <string name="notif_idle">Stopped</string>
