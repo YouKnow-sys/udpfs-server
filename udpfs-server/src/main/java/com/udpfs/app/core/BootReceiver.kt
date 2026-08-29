@@ -3,6 +3,7 @@ package com.udpfs.app.core
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 import com.udpfs.app.UdpfsApplication
 import kotlinx.coroutines.CancellationException
@@ -16,6 +17,7 @@ class BootReceiver : BroadcastReceiver() {
         intent: Intent,
     ) {
         if (intent.action !in BOOT_ACTIONS) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) return
         val result = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {

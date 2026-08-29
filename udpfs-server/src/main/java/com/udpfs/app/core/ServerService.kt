@@ -8,9 +8,12 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import com.udpfs.app.MainActivity
 import com.udpfs.app.R
 import com.udpfs.app.UdpfsApplication
@@ -60,7 +63,7 @@ class ServerService : Service() {
                     this,
                     NOTIFICATION_ID,
                     buildNotification(initial),
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
+                    foregroundType(),
                 )
                 if (status is ServerStatus.Idle) repo.start()
                 observeStatus()
@@ -76,6 +79,21 @@ class ServerService : Service() {
                 START_NOT_STICKY
             }
         }
+    }
+
+    private fun foregroundType(): Int =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+        } else {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        }
+
+    override fun onTimeout(
+        startId: Int,
+        fgsType: Int,
+    ) {
+        Log.w("ServerService", "foreground service type $fgsType hit its time limit; stopping")
+        repo.stop()
     }
 
     private fun observeStatus() {
@@ -161,10 +179,6 @@ class ServerService : Service() {
                     getString(R.string.notif_starting)
                 }
 
-                is ServerStatus.Starting -> {
-                    getString(R.string.notif_starting)
-                }
-
                 is ServerStatus.Stopping -> {
                     getString(R.string.notif_stopping)
                 }
@@ -196,7 +210,10 @@ class ServerService : Service() {
         const val ACTION_STOP = "com.udpfs.app.action.STOP"
 
         fun start(context: Context) {
-            context.startForegroundService(Intent(context, ServerService::class.java).setAction(ACTION_START))
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, ServerService::class.java).setAction(ACTION_START),
+            )
         }
 
         fun stop(context: Context) {

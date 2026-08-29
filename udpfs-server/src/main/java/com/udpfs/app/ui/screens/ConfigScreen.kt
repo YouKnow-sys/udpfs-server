@@ -1,5 +1,6 @@
 package com.udpfs.app.ui.screens
 
+import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -307,11 +308,15 @@ private fun FeaturesSection(
             enabled = true,
             onChange = { v -> update { it.copy(showStats = v) } },
         )
+        val autostartBlocked = Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM
         SwitchRow(
             title = stringResource(R.string.config_auto_start),
             checked = config.autoStart,
-            enabled = enabled,
+            enabled = enabled && !autostartBlocked,
             onChange = { v -> update { it.copy(autoStart = v) } },
         )
+        if (autostartBlocked) {
+            SupportingText(stringResource(R.string.config_auto_start_unavailable))
+        }
     }
 }

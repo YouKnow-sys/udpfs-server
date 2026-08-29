@@ -60,6 +60,7 @@
     <string name="config_cache">Decompression cache</string>
     <string name="config_show_stats">Show stats</string>
     <string name="config_auto_start">Start on boot</string>
+    <string name="config_auto_start_unavailable">Autostart isn\'t possible on this device</string>
     <string name="config_unit_minutes">" min"</string>
     <string name="config_unit_blocks">" blk"</string>
 
