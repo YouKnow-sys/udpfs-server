@@ -14,7 +14,7 @@ DEBUG_APK_DIR   := udpfs-server/build/outputs/apk/debug
 RELEASE_APK_DIR := udpfs-server/build/outputs/apk/release
 
 .DELETE_ON_ERROR:
-.PHONY: all aar apk apk-debug apk-release apk-abi install test check clean check-env
+.PHONY: all aar apk apk-debug apk-release apk-abi install install-release test check clean check-env
 
 all: apk-debug
 
@@ -50,6 +50,9 @@ apk-abi: aar
 
 install: apk-debug
 	adb install -r "$(DEBUG_APK_DIR)/udpfs-server-debug.apk"
+
+install-release: apk-release
+	adb install -r "$(RELEASE_APK_DIR)/udpfs-server-release.apk"
 
 clean:
 	rm -f "$(AAR_OUT)" udpfs-server/libs/udpfsdbridge-sources.jar udpfs-server/libs/*.jar

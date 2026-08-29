@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -156,10 +157,13 @@ private fun AppContent(
     isTv: Boolean,
     onBrowse: (BrowseTarget) -> Unit,
 ) {
+    val server = remember(isTv) { movableContentOf { ServerScreen(vm, isTv) } }
+    val config = remember(isTv) { movableContentOf { ConfigScreen(vm = vm, onBrowse = onBrowse, isTv = isTv) } }
+    val stats = remember(isTv) { movableContentOf { StatsScreen(vm, isTv) } }
     when (screen) {
-        Screen.Server -> ServerScreen(vm, isTv)
-        Screen.Config -> ConfigScreen(vm = vm, onBrowse = onBrowse, isTv = isTv)
-        Screen.Stats -> StatsScreen(vm, isTv)
+        Screen.Server -> server()
+        Screen.Config -> config()
+        Screen.Stats -> stats()
     }
 }
 

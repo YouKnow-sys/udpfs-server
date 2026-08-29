@@ -34,12 +34,35 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 internal const val FOCUS_STIFFNESS = 2400f
 
 private fun <T> focusSpring(): SpringSpec<T> = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = FOCUS_STIFFNESS)
+
+private class CachedOutline {
+    private var shape: Shape? = null
+    private var size = Size.Zero
+    private var value: Outline? = null
+
+    fun get(
+        shape: Shape,
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density,
+    ): Outline {
+        val cached = value
+        if (cached != null && this.shape == shape && this.size == size) return cached
+        val created = shape.createOutline(size, layoutDirection, density)
+        this.shape = shape
+        this.size = size
+        value = created
+        return created
+    }
+}
 
 @Composable
 fun Modifier.focusRing(shape: Shape = CircleShape): Modifier {
@@ -56,6 +79,7 @@ fun Modifier.focusRing(shape: Shape = CircleShape): Modifier {
     )
     val color = MaterialTheme.colorScheme.primary
     val path = remember { Path() }
+    val outlineCache = remember { CachedOutline() }
     return this
         .onFocusChanged { focused = it.hasFocus }
         .graphicsLayer {
@@ -66,7 +90,8 @@ fun Modifier.focusRing(shape: Shape = CircleShape): Modifier {
             val strokeInset = width.roundToPx() / 2
             if (strokeInset * 2 < size.width && strokeInset * 2 < size.height) {
                 val outline =
-                    shape.createOutline(
+                    outlineCache.get(
+                        shape,
                         Size(size.width - strokeInset * 2, size.height - strokeInset * 2),
                         layoutDirection,
                         this,
@@ -102,6 +127,7 @@ fun Modifier.focusHighlight(shape: Shape): Modifier {
     )
     val color = MaterialTheme.colorScheme.secondaryContainer
     val path = remember { Path() }
+    val outlineCache = remember { CachedOutline() }
     return this
         .onFocusChanged { focused = it.isFocused }
         .graphicsLayer {
@@ -109,7 +135,7 @@ fun Modifier.focusHighlight(shape: Shape): Modifier {
             scaleY = scale
         }.drawBehind {
             if (focused) {
-                drawPath(shape.createOutline(size, layoutDirection, this).writeTo(path), color)
+                drawPath(outlineCache.get(shape, size, layoutDirection, this).writeTo(path), color)
             }
         }
 }

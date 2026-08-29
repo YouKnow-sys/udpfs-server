@@ -73,6 +73,8 @@ class ServerRepository(
     private val pendingWrites = AtomicInteger(0)
     private val configLock = Any()
 
+    private val persistSignal = Channel<Unit>(capacity = Channel.CONFLATED)
+
     private val configLoaded = CompletableDeferred<Unit>()
 
     private val _stats = MutableStateFlow(StatsSnapshot())
@@ -85,6 +87,8 @@ class ServerRepository(
     val logs: StateFlow<List<LogLine>> = _logs.asStateFlow()
 
     val errors = Channel<String>(Channel.BUFFERED)
+
+    private val lastError = AtomicReference<String?>(null)
 
     private val logBuffer = LogRingBuffer(MAX_LOG_LINES)
     private var flushJob: Job? = null
@@ -134,9 +138,16 @@ class ServerRepository(
                     }
                 }
         }
+        scope.launch {
+            for (kick in persistSignal) {
+                delay(PERSIST_DEBOUNCE_MS)
+                persistNow()
+            }
+        }
     }
 
     private fun emitError(message: String) {
+        if (lastError.getAndSet(message) == message) return
         if (errors.trySend(message).isFailure) Log.w("ServerRepository", message)
     }
 
@@ -155,25 +166,32 @@ class ServerRepository(
             _config.value = next
             pendingWrites.incrementAndGet()
         }
-        scope.launch {
-            writeMutex.withLock {
-                try {
-                    persistConfig(_config.value)
-                } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    emitError("Failed to save settings: ${e.message ?: e.javaClass.simpleName}")
-                } finally {
-                    pendingWrites.decrementAndGet()
+        persistSignal.trySend(Unit)
+    }
+
+    private suspend fun persistNow() {
+        writeMutex.withLock {
+            val folded =
+                synchronized(configLock) {
+                    val pending = pendingWrites.get()
+                    if (pending == 0) return@withLock
+                    pending
                 }
-                if (pendingWrites.get() == 0) {
-                    val disk =
-                        guardCancellations({ configSource.first() }) { e ->
-                            emitError("Failed to load settings: ${e.message ?: e.javaClass.simpleName}")
-                        } ?: return@withLock
-                    synchronized(configLock) {
-                        if (pendingWrites.get() == 0) _config.value = disk
-                    }
+            try {
+                persistConfig(_config.value)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                emitError("Failed to save settings: ${e.message ?: e.javaClass.simpleName}")
+                val disk =
+                    guardCancellations({ configSource.first() }) { loadFailure ->
+                        emitError("Failed to load settings: ${loadFailure.message ?: loadFailure.javaClass.simpleName}")
+                    } ?: return@withLock
+                synchronized(configLock) {
+                    if (pendingWrites.get() == folded) _config.value = disk
                 }
+            } finally {
+                pendingWrites.addAndGet(-folded)
             }
         }
     }
@@ -181,7 +199,7 @@ class ServerRepository(
     fun start() {
         val job =
             scope.launch(start = CoroutineStart.LAZY) {
-                writeMutex.withLock { }
+                persistNow()
 
                 val cfg =
                     guardCancellations({ awaitConfig() }) { e ->
@@ -198,27 +216,41 @@ class ServerRepository(
 
                 val effective = cfg.copy(readOnly = cfg.readOnly || forcesReadOnlyFor(cfg))
 
-                bridgeMutex.withLock {
-                    guardCancellations({ withContext(Dispatchers.IO) { controller.start(effective) } }) { e ->
-                        _status.compareAndSet(ServerStatus.Starting, ServerStatus.Idle)
-                        emitError(e.message ?: "Failed to start server")
-                    } ?: return@launch
+                guardCancellations({ withContext(Dispatchers.IO) { controller.start(effective) } }) { e ->
+                    bridgeMutex.withLock { _status.compareAndSet(ServerStatus.Starting, ServerStatus.Idle) }
+                    emitError(e.message ?: "Failed to start server")
+                } ?: return@launch
 
-                    if (!_status.compareAndSet(ServerStatus.Starting, ServerStatus.Running)) {
-                        withContext(Dispatchers.IO) { controller.stop() }
-                        return@launch
+                val claimed =
+                    bridgeMutex.withLock {
+                        if (_status.compareAndSet(ServerStatus.Starting, ServerStatus.Running)) {
+                            _stats.value = StatsSnapshot(running = true)
+                            true
+                        } else {
+                            false
+                        }
                     }
+                if (!claimed) {
+                    withContext(Dispatchers.IO) { controller.stop() }
+                    return@launch
+                }
 
-                    _stats.value = StatsSnapshot(running = true)
-
-                    _mount.value = guardCancellations({ withContext(Dispatchers.IO) { controller.mount() } }) { e ->
+                val mount =
+                    guardCancellations({ withContext(Dispatchers.IO) { controller.mount() } }) { e ->
                         emitError(e.message ?: "Failed to read mount info")
+                    }
+                if (mount == null) {
+                    withContext(Dispatchers.IO) { controller.stop() }
+                    bridgeMutex.withLock {
                         if (_status.compareAndSet(ServerStatus.Running, ServerStatus.Idle)) {
-                            withContext(Dispatchers.IO) { controller.stop() }
                             _stats.value = StatsSnapshot()
                             _mount.value = MountSnapshot()
                         }
-                    } ?: return@launch
+                    }
+                    return@launch
+                }
+                bridgeMutex.withLock {
+                    if (_status.value is ServerStatus.Running) _mount.value = mount
                 }
             }
         startJob.set(job)
@@ -237,8 +269,8 @@ class ServerRepository(
         scope.launch {
             try {
                 if (wasStarting) startJob.get()?.join()
+                withContext(Dispatchers.IO) { controller.stop() }
                 bridgeMutex.withLock {
-                    withContext(Dispatchers.IO) { controller.stop() }
                     _stats.value = StatsSnapshot()
                     _mount.value = MountSnapshot()
                     _status.value = ServerStatus.Idle
@@ -323,6 +355,7 @@ class ServerRepository(
 
 private const val MAX_LOG_LINES = 200
 private val LOG_FLUSH_MS = 250.milliseconds
+private val PERSIST_DEBOUNCE_MS = 300.milliseconds
 private val POLL_INTERVAL_MS = 1_000.milliseconds
 
 private inline fun <T> guardCancellations(

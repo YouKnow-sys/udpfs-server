@@ -424,8 +424,14 @@ private fun LogLineRow(
             LogLevel.WARN -> MaterialTheme.colorScheme.tertiary
             else -> MaterialTheme.colorScheme.onSurfaceVariant
         }
+
+    val text =
+        remember(line, timeFormat) {
+            "${timeFormat.format(Instant.ofEpochMilli(line.timeMillis))}  ${line.message}"
+        }
+
     Text(
-        "${timeFormat.format(Instant.ofEpochMilli(line.timeMillis))}  ${line.message}",
+        text,
         style = MaterialTheme.typography.bodySmall,
         fontFamily = FontFamily.Monospace,
         color = color,

@@ -64,7 +64,14 @@ fun ConfigScreen(
     val update = vm::updateConfig
 
     var resumeKey by remember { mutableStateOf(0) }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumeKey++ }
+    var awaitedPause by remember { mutableStateOf(false) }
+    LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { awaitedPause = true }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        if (awaitedPause) {
+            awaitedPause = false
+            resumeKey++
+        }
+    }
 
     val fsRootAccess by writeAccessState(vm, config.fsRoot, resumeKey)
     val blockDeviceAccess by writeAccessState(vm, config.blockDevice, resumeKey)
@@ -177,8 +184,9 @@ private fun writeAccessState(
     resumeKey: Int,
 ): State<WriteAccess?> =
     produceState<WriteAccess?>(initialValue = vm.cachedWriteAccess(path), path, resumeKey) {
-        value = vm.cachedWriteAccess(path)
-        if (path.isNotBlank()) {
+        val cached = vm.cachedWriteAccess(path)
+        value = cached
+        if (path.isNotBlank() && (cached == null || resumeKey > 0)) {
             val access = probeWriteAccessCapped(File(path))
             vm.storeWriteAccess(path, access)
             value = access

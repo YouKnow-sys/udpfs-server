@@ -81,6 +81,9 @@ class BridgeController {
         }
     }
 
+    @Volatile
+    private var compressionFormats: List<String>? = null
+
     fun start(config: ServerConfig) = delegate.start(config.toBridgeConfig())
 
     fun stop() = delegate.stop()
@@ -98,7 +101,12 @@ class BridgeController {
 
     fun isRunning(): Boolean = delegate.stats().running
 
-    fun mount(): MountSnapshot = delegate.mountInfo().toSnapshot(delegate.compressionFormats().toFormatList())
+    fun mount(): MountSnapshot {
+        val info = delegate.mountInfo()
+        val formats =
+            compressionFormats ?: delegate.compressionFormats().toFormatList().also { compressionFormats = it }
+        return info.toSnapshot(formats)
+    }
 
     fun setLogger(logger: (level: LogLevel, message: String) -> Unit) {
         this.logger = logger

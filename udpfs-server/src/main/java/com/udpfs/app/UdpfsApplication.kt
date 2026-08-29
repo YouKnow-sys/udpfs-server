@@ -11,6 +11,11 @@ import kotlinx.coroutines.SupervisorJob
 import java.io.File
 
 class UdpfsApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        serverRepository
+    }
+
     private val dataStore by lazy {
         PreferenceDataStoreFactory.create(
             produceFile = { File(filesDir, "datastore/settings.preferences_pb") },
