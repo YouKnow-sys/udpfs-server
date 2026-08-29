@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -70,6 +71,7 @@ import com.udpfs.app.ui.format.formatDuration
 @Composable
 fun ServerScreen(
     vm: AppViewModel,
+    onAbout: () -> Unit,
     isTv: Boolean = false,
 ) {
     val context = LocalContext.current
@@ -128,60 +130,69 @@ fun ServerScreen(
                     vertical = if (isTv) 32.dp else 16.dp,
                 ),
     ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .heightIn(min = maxHeight),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement =
-                if (isTv) {
-                    Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
-                } else {
-                    Arrangement.spacedBy(16.dp)
-                },
-        ) {
-            if (!storageGranted) {
-                StorageGate(onRequest = { Permissions.requestStorageAccess(context, requestStoragePerms) })
+        Column(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                IconButton(onClick = onAbout) {
+                    Icon(painterResource(R.drawable.ic_info), contentDescription = stringResource(R.string.about_title))
+                }
             }
-
-            if (isTv) {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(56.dp),
+            BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .heightIn(min = maxHeight),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement =
+                        if (isTv) {
+                            Arrangement.spacedBy(24.dp, Alignment.CenterVertically)
+                        } else {
+                            Arrangement.spacedBy(16.dp)
+                        },
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(20.dp),
-                    ) {
+                    if (!storageGranted) {
+                        StorageGate(onRequest = { Permissions.requestStorageAccess(context, requestStoragePerms) })
+                    }
+
+                    if (isTv) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(56.dp),
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(20.dp),
+                            ) {
+                                PowerButton(
+                                    running = running,
+                                    busy = busy,
+                                    diameter = PowerDiameterTv,
+                                    onToggle = toggle,
+                                )
+                                StatusText(status, vm)
+                            }
+                            Column(
+                                Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(24.dp),
+                            ) {
+                                if (running) DiscoverableCard(startAligned = true)
+                                MountCard(mount, config)
+                            }
+                        }
+                    } else {
                         PowerButton(
                             running = running,
                             busy = busy,
-                            diameter = PowerDiameterTv,
+                            diameter = PowerDiameterMobile,
                             onToggle = toggle,
                         )
                         StatusText(status, vm)
-                    }
-                    Column(
-                        Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(24.dp),
-                    ) {
-                        if (running) DiscoverableCard(startAligned = true)
+                        if (running) DiscoverableCard(startAligned = false)
                         MountCard(mount, config)
                     }
                 }
-            } else {
-                PowerButton(
-                    running = running,
-                    busy = busy,
-                    diameter = PowerDiameterMobile,
-                    onToggle = toggle,
-                )
-                StatusText(status, vm)
-                if (running) DiscoverableCard(startAligned = false)
-                MountCard(mount, config)
             }
         }
     }

@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.udpfs.app.AppViewModel
 import com.udpfs.app.R
+import com.udpfs.app.ui.screens.AboutScreen
 import com.udpfs.app.ui.screens.ConfigScreen
 import com.udpfs.app.ui.screens.DEFAULT_START
 import com.udpfs.app.ui.screens.FileBrowserScreen
@@ -63,6 +64,7 @@ fun UdpfsApp() {
 
     var screen by rememberSaveable { mutableStateOf(Screen.Server) }
     var browseTarget by rememberSaveable { mutableStateOf<BrowseTarget?>(null) }
+    var showAbout by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
@@ -86,13 +88,13 @@ fun UdpfsApp() {
             }
         }
 
-    val browsing = browseTarget != null
+    val overlay = browseTarget != null || showAbout
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
-            if (!isTv && !browsing) {
+            if (!isTv && !overlay) {
                 NavigationBar {
                     destinations.forEach { (dest, icon) ->
                         NavigationBarItem(
@@ -130,6 +132,13 @@ fun UdpfsApp() {
             return@Scaffold
         }
 
+        if (showAbout) {
+            Box(Modifier.fillMaxSize().padding(padding)) {
+                AboutScreen(onDismiss = { showAbout = false })
+            }
+            return@Scaffold
+        }
+
         Box(Modifier.fillMaxSize().padding(padding)) {
             if (isTv) {
                 Row(Modifier.fillMaxSize()) {
@@ -148,10 +157,10 @@ fun UdpfsApp() {
                             }
                         }
                     }
-                    AppContent(screen, vm, isTv, onBrowse = { browseTarget = it })
+                    AppContent(screen, vm, isTv, onBrowse = { browseTarget = it }, onAbout = { showAbout = true })
                 }
             } else {
-                AppContent(screen, vm, isTv, onBrowse = { browseTarget = it })
+                AppContent(screen, vm, isTv, onBrowse = { browseTarget = it }, onAbout = { showAbout = true })
             }
         }
     }
@@ -163,8 +172,9 @@ private fun AppContent(
     vm: AppViewModel,
     isTv: Boolean,
     onBrowse: (BrowseTarget) -> Unit,
+    onAbout: () -> Unit,
 ) {
-    val server = remember(isTv) { movableContentOf { ServerScreen(vm, isTv) } }
+    val server = remember(isTv) { movableContentOf { ServerScreen(vm, onAbout, isTv) } }
     val config = remember(isTv) { movableContentOf { ConfigScreen(vm = vm, onBrowse = onBrowse, isTv = isTv) } }
     val stats = remember(isTv) { movableContentOf { StatsScreen(vm, isTv) } }
     when (screen) {

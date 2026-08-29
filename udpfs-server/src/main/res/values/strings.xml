@@ -6,6 +6,13 @@
     <string name="nav_config">Config</string>
     <string name="nav_stats">Stats</string>
 
+    <string name="about_title">About</string>
+    <string name="about_tagline">Share folders and disk images with a PS2 over the network</string>
+    <string name="about_source">Source code</string>
+    <string name="about_source_url">github.com/Youknow-sys/udpfs-server</string>
+    <string name="about_udpfsd">udpfsd by pcm720</string>
+    <string name="about_udpfsd_url">github.com/pcm720/udpfsd</string>
+
     <string name="status_idle">Server is stopped</string>
     <string name="status_starting">Starting…</string>
     <string name="status_running">Running · %s</string>
