@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -71,7 +70,6 @@ fun ConfigScreen(
 
     val forcedReadOnly =
         fsRootAccess == WriteAccess.ReadOnly || blockDeviceAccess == WriteAccess.ReadOnly
-
     val unreachable =
         fsRootAccess == WriteAccess.Inaccessible || blockDeviceAccess == WriteAccess.Inaccessible
 
@@ -202,12 +200,7 @@ private fun StorageSection(
             enabled = enabled,
             onClick = { onBrowse(BrowseTarget.FsRoot) },
             clearLabel = stringResource(R.string.action_clear_fs_root),
-            onClear =
-                if (config.fsRoot.isBlank()) {
-                    null
-                } else {
-                    { update { it.copy(fsRoot = "") } }
-                },
+            onClear = { update { it.copy(fsRoot = "") } }.takeIf { config.fsRoot.isNotBlank() },
         )
         PathRow(
             icon = painterResource(R.drawable.ic_storage),
@@ -216,12 +209,7 @@ private fun StorageSection(
             enabled = enabled,
             onClick = { onBrowse(BrowseTarget.BlockDevice) },
             clearLabel = stringResource(R.string.action_clear_block_device),
-            onClear =
-                if (config.blockDevice.isBlank()) {
-                    null
-                } else {
-                    { update { it.copy(blockDevice = "") } }
-                },
+            onClear = { update { it.copy(blockDevice = "") } }.takeIf { config.blockDevice.isNotBlank() },
         )
         SupportingText(stringResource(R.string.config_share_hint))
         if (unreachable) {

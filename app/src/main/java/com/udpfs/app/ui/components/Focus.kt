@@ -1,6 +1,7 @@
 package com.udpfs.app.ui.components
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -38,18 +39,19 @@ import kotlinx.coroutines.launch
 
 internal const val FOCUS_STIFFNESS = 2400f
 
+private fun <T> focusSpring(): SpringSpec<T> = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = FOCUS_STIFFNESS)
+
 @Composable
 fun Modifier.focusRing(shape: Shape = CircleShape): Modifier {
     var focused by remember { mutableStateOf(false) }
-    val spec = spring<Float>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = FOCUS_STIFFNESS)
     val width by animateDpAsState(
         targetValue = if (focused) 3.dp else 0.dp,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = FOCUS_STIFFNESS),
+        animationSpec = focusSpring(),
         label = "focusBorder",
     )
     val scale by animateFloatAsState(
         targetValue = if (focused) 1.04f else 1f,
-        animationSpec = spec,
+        animationSpec = focusSpring(),
         label = "focusScale",
     )
     val color = MaterialTheme.colorScheme.primary
@@ -95,7 +97,7 @@ fun Modifier.focusHighlight(shape: Shape): Modifier {
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (focused) 1.02f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = FOCUS_STIFFNESS),
+        animationSpec = focusSpring(),
         label = "focusScale",
     )
     val color = MaterialTheme.colorScheme.secondaryContainer

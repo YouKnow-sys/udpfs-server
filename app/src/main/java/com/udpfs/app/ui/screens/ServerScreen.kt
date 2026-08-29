@@ -40,14 +40,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -87,9 +83,7 @@ fun ServerScreen(
     var ip by remember { mutableStateOf("") }
     val running = status is ServerStatus.Running
     val busy = status is ServerStatus.Starting || status is ServerStatus.Stopping
-    LaunchedEffect(running) {
-        ip = vm.localIP()
-    }
+    LaunchedEffect(running) { ip = vm.localIP() }
     val scope = rememberCoroutineScope()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         storageGranted = Permissions.hasStorageAccess(context)
@@ -235,8 +229,6 @@ private fun StatusText(
 
 private val PowerDiameterTv = 252.dp
 private val PowerDiameterMobile = 216.dp
-private val PowerHaloOvershoot = 14.dp
-private const val POWER_HALO_ALPHA = 0.45f
 private const val FOCUSED_POWER_SCALE = 1.03f
 private val PowerIconLarge = 84.dp
 private val PowerIconSmall = 72.dp
@@ -260,17 +252,6 @@ private fun PowerButton(
         label = "powerRing",
     )
 
-    val density = LocalDensity.current
-    val haloBrush =
-        remember(ring, diameter, density) {
-            val radius = with(density) { (diameter / 2 + PowerHaloOvershoot).toPx() }
-            Brush.radialGradient(
-                colors = listOf(ring.copy(alpha = POWER_HALO_ALPHA), Color.Transparent),
-                center = Offset(radius, radius),
-                radius = radius,
-            )
-        }
-
     Box(
         modifier =
             Modifier
@@ -280,13 +261,6 @@ private fun PowerButton(
                         scaleX = FOCUSED_POWER_SCALE
                         scaleY = FOCUSED_POWER_SCALE
                     }
-                }.drawBehind {
-                    val halo = size.minDimension / 2 + PowerHaloOvershoot.toPx()
-                    drawCircle(
-                        brush = haloBrush,
-                        radius = halo,
-                        center = center,
-                    )
                 }.clip(CircleShape)
                 .background(container)
                 .drawBehind {

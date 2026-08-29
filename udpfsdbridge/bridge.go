@@ -121,8 +121,8 @@ func (c *ServerController) Stats() *Stats {
 	out.Running = true
 	out.UptimeSeconds = int64(m.Uptime / time.Second)
 	out.PeerCount = len(m.Peers)
-	for i := range m.Peers {
-		accumulate(out, peerStatsFrom(m.Peers[i]))
+	for _, p := range m.Peers {
+		accumulate(out, peerStatsFrom(p))
 	}
 	return out
 }
@@ -212,9 +212,10 @@ func peerStatsFrom(p server.PeerMetrics) PeerStats {
 }
 
 func GetLocalIP() string {
+	const fallbackIP = "0.0.0.0"
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
-		return "0.0.0.0"
+		return fallbackIP
 	}
 	for _, address := range addrs {
 		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
@@ -223,5 +224,5 @@ func GetLocalIP() string {
 			}
 		}
 	}
-	return "0.0.0.0"
+	return fallbackIP
 }

@@ -14,12 +14,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -59,7 +57,6 @@ import com.udpfs.app.core.Formatters
 import com.udpfs.app.core.Permissions
 import com.udpfs.app.core.volumeRootPath
 import com.udpfs.app.ui.BrowseMode
-import com.udpfs.app.ui.components.EmptyState
 import com.udpfs.app.ui.components.FOCUS_STIFFNESS
 import com.udpfs.app.ui.components.SupportingText
 import com.udpfs.app.ui.components.focusedClickable
@@ -144,17 +141,9 @@ fun FileBrowserScreen(
                 } else {
                     val f = File(dirPath)
                     when {
-                        f.isDirectory -> {
-                            f
-                        }
-
-                        f.isFile -> {
-                            f.parentFile ?: File(DEFAULT_START)
-                        }
-
-                        else -> {
-                            File(DEFAULT_START)
-                        }
+                        f.isDirectory -> f
+                        f.isFile -> f.parentFile ?: File(DEFAULT_START)
+                        else -> File(DEFAULT_START)
                     }
                 }
             }
@@ -252,10 +241,9 @@ fun FileBrowserScreen(
             val result = listing
             when {
                 result == null -> {
-                    Box(
-                        Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) { CircularProgressIndicator() }
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
                 }
 
                 !result.accessible -> {
@@ -365,7 +353,7 @@ private fun Breadcrumb(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        crumbs.forEachIndexed { index, (name, path) ->
+        crumbs.forEachIndexed { index, (name, crumbPath) ->
             if (index > 0) {
                 Text(
                     "›",
@@ -379,7 +367,7 @@ private fun Breadcrumb(
                 name,
                 modifier =
                     Modifier
-                        .clickable(enabled = index < crumbs.lastIndex) { onNavigate(path) }
+                        .clickable(enabled = index < crumbs.lastIndex) { onNavigate(crumbPath) }
                         .padding(vertical = 10.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color =

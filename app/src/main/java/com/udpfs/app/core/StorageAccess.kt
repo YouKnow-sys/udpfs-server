@@ -30,7 +30,7 @@ private const val PROBE_PREFIX = ".udpfs-write-probe-"
 fun probeWriteAccess(target: File): WriteAccess =
     try {
         probeObservedTarget(target)
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         WriteAccess.ReadOnly
     }
 
@@ -38,9 +38,7 @@ private fun probeObservedTarget(target: File): WriteAccess {
     val attributes =
         try {
             Files.readAttributes(target.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
-        } catch (e: NoSuchFileException) {
-            return WriteAccess.Inaccessible
-        } catch (e: FileSystemException) {
+        } catch (_: FileSystemException) {
             return WriteAccess.Inaccessible
         }
     return if (attributes.isDirectory) probeDirectory(target) else probeFile(target)
@@ -50,18 +48,18 @@ private fun probeDirectory(directory: File): WriteAccess {
     val probe = File(directory, PROBE_PREFIX + System.nanoTime()).toPath()
     try {
         Files.createFile(probe)
-    } catch (e: NoSuchFileException) {
+    } catch (_: NoSuchFileException) {
         return WriteAccess.Inaccessible
-    } catch (e: AccessDeniedException) {
+    } catch (_: AccessDeniedException) {
         return WriteAccess.ReadOnly
-    } catch (e: ReadOnlyFileSystemException) {
+    } catch (_: ReadOnlyFileSystemException) {
         return WriteAccess.ReadOnly
     }
     val landedAtProbePath =
         try {
             Files.readAttributes(probe, BasicFileAttributes::class.java)
             true
-        } catch (e: NoSuchFileException) {
+        } catch (_: NoSuchFileException) {
             false
         }
     runCatching { Files.deleteIfExists(probe) }
@@ -71,11 +69,11 @@ private fun probeDirectory(directory: File): WriteAccess {
 private fun probeFile(file: File): WriteAccess =
     try {
         FileChannel.open(file.toPath(), StandardOpenOption.APPEND).use { WriteAccess.Writable }
-    } catch (e: NoSuchFileException) {
+    } catch (_: NoSuchFileException) {
         WriteAccess.Inaccessible
-    } catch (e: AccessDeniedException) {
+    } catch (_: AccessDeniedException) {
         WriteAccess.ReadOnly
-    } catch (e: ReadOnlyFileSystemException) {
+    } catch (_: ReadOnlyFileSystemException) {
         WriteAccess.ReadOnly
     }
 

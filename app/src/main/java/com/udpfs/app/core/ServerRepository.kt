@@ -76,12 +76,7 @@ class ServerRepository(
 
     val errors = Channel<String>(Channel.BUFFERED)
 
-    private fun emitError(message: String) {
-        if (errors.trySend(message).isFailure) Log.w("ServerRepository", message)
-    }
-
     private val logBuffer = LogRingBuffer(MAX_LOG_LINES)
-
     private var flushJob: Job? = null
 
     private val logSignal = Channel<Unit>(capacity = Channel.CONFLATED)
@@ -126,6 +121,10 @@ class ServerRepository(
                     }
                 }
         }
+    }
+
+    private fun emitError(message: String) {
+        if (errors.trySend(message).isFailure) Log.w("ServerRepository", message)
     }
 
     fun updateConfig(transform: (ServerConfig) -> ServerConfig) {
