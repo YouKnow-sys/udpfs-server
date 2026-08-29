@@ -49,12 +49,7 @@ class AppViewModel(
         if (path.isNotBlank()) writeAccessCache[path] = access
     }
 
-    fun pickFsRoot(path: String) = pickStoragePath(path) { c, p -> c.copy(fsRoot = p) }
+    fun pickFsRoot(path: String) = repo.updateConfig { it.copy(fsRoot = path) }
 
-    fun pickBlockDevice(path: String) = pickStoragePath(path) { c, p -> c.copy(blockDevice = p) }
-
-    private fun pickStoragePath(
-        path: String,
-        select: (ServerConfig, String) -> ServerConfig,
-    ) = repo.updateConfig { c -> select(c, path) }
+    fun pickBlockDevice(path: String) = repo.updateConfig { it.copy(blockDevice = path) }
 }

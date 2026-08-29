@@ -85,14 +85,6 @@ class Settings(
 ) {
     val config: Flow<ServerConfig> = dataStore.data.map { it.toServerConfig() }
 
-    suspend fun update(transform: (ServerConfig) -> ServerConfig) {
-        dataStore.edit { p ->
-            val old = p.toServerConfig()
-            val c = transform(old)
-            if (c != old) c.writeTo(p)
-        }
-    }
-
     suspend fun set(config: ServerConfig) {
         dataStore.edit { config.writeTo(it) }
     }

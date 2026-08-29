@@ -53,9 +53,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.udpfs.app.R
-import com.udpfs.app.core.Formatters
 import com.udpfs.app.core.Permissions
-import com.udpfs.app.core.volumeRootPath
+import com.udpfs.app.core.formatByteValue
 import com.udpfs.app.ui.BrowseMode
 import com.udpfs.app.ui.components.FOCUS_STIFFNESS
 import com.udpfs.app.ui.components.SupportingText
@@ -84,6 +83,14 @@ private data class Listing(
 )
 
 private val LISTING_UNREADABLE = Listing(entries = emptyList(), accessible = false)
+
+private fun volumeRootPath(
+    externalFilesDirPath: String,
+    packageName: String,
+): String? {
+    val suffix = "/Android/data/$packageName/files"
+    return externalFilesDirPath.takeIf { it.endsWith(suffix) }?.removeSuffix(suffix)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -167,7 +174,7 @@ fun FileBrowserScreen(
                         accessible = true,
                     )
                 } else {
-                    listEntries(corrected, mode) { formatBytes(context, Formatters.bytes(it)) }
+                    listEntries(corrected, mode) { formatBytes(context, formatByteValue(it)) }
                 }
             }
     }

@@ -43,11 +43,13 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.udpfs.app.AppViewModel
 import com.udpfs.app.R
-import com.udpfs.app.core.Formatters
 import com.udpfs.app.core.LogLevel
 import com.udpfs.app.core.LogLine
 import com.udpfs.app.core.PeerSnapshot
 import com.udpfs.app.core.StatsSnapshot
+import com.udpfs.app.core.formatAgoValue
+import com.udpfs.app.core.formatByteValue
+import com.udpfs.app.core.formatDurationParts
 import com.udpfs.app.ui.components.EmptyState
 import com.udpfs.app.ui.components.InfoRow
 import com.udpfs.app.ui.components.StatRows
@@ -130,7 +132,7 @@ private fun HeaderCard(stats: StateFlow<StatsSnapshot>) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    stringResource(R.string.stats_uptime, formatDuration(Formatters.duration(stats.uptimeSeconds))),
+                    stringResource(R.string.stats_uptime, formatDuration(formatDurationParts(stats.uptimeSeconds))),
                     style = MaterialTheme.typography.titleMedium,
                 )
                 Text(
@@ -141,12 +143,12 @@ private fun HeaderCard(stats: StateFlow<StatsSnapshot>) {
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(
-                    stringResource(R.string.stats_tx_bytes, formatBytes(Formatters.bytes(stats.counters.bytesTx))),
+                    stringResource(R.string.stats_tx_bytes, formatBytes(formatByteValue(stats.counters.bytesTx))),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
-                    stringResource(R.string.stats_rx_bytes, formatBytes(Formatters.bytes(stats.counters.bytesRx))),
+                    stringResource(R.string.stats_rx_bytes, formatBytes(formatByteValue(stats.counters.bytesRx))),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.secondary,
                 )
@@ -233,7 +235,7 @@ private fun PeerCard(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(peer.addr, style = MaterialTheme.typography.titleSmall, fontFamily = FontFamily.Monospace)
-                    SupportingText(stringResource(R.string.stats_last_seen, formatAgo(Formatters.ago(peer.lastSeenUnix))))
+                    SupportingText(stringResource(R.string.stats_last_seen, formatAgo(formatAgoValue(peer.lastSeenUnix))))
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
@@ -260,8 +262,8 @@ private fun PeerCard(
                         stringResource(R.string.stats_bytes),
                         stringResource(
                             R.string.stats_bytes_pair,
-                            formatBytes(Formatters.bytes(peer.counters.bytesTx)),
-                            formatBytes(Formatters.bytes(peer.counters.bytesRx)),
+                            formatBytes(formatByteValue(peer.counters.bytesTx)),
+                            formatBytes(formatByteValue(peer.counters.bytesRx)),
                         ),
                     )
                     StatRows(peer.counters)

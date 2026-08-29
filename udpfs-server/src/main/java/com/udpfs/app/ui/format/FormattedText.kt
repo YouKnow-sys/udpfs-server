@@ -4,10 +4,10 @@ import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.udpfs.app.R
-import com.udpfs.app.core.Formatters
-import com.udpfs.app.core.Formatters.Ago
-import com.udpfs.app.core.Formatters.ByteValue
-import com.udpfs.app.core.Formatters.DurationParts
+import com.udpfs.app.core.Ago
+import com.udpfs.app.core.ByteValue
+import com.udpfs.app.core.DurationParts
+import com.udpfs.app.core.formatRateValue
 
 @Composable
 fun formatBytes(value: ByteValue): String =
@@ -27,7 +27,7 @@ fun formatBytes(
 
 @Composable
 fun formatRate(bytesPerSecond: Double): String {
-    val rate = Formatters.rate(bytesPerSecond)
+    val rate = formatRateValue(bytesPerSecond)
     return if (rate == ByteValue.Plain(0)) {
         stringResource(R.string.rate_zero)
     } else {

@@ -54,12 +54,13 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.udpfs.app.AppViewModel
 import com.udpfs.app.R
-import com.udpfs.app.core.Formatters
 import com.udpfs.app.core.MountSnapshot
 import com.udpfs.app.core.Permissions
 import com.udpfs.app.core.ServerConfig
 import com.udpfs.app.core.ServerService
 import com.udpfs.app.core.ServerStatus
+import com.udpfs.app.core.formatByteValue
+import com.udpfs.app.core.formatDurationParts
 import com.udpfs.app.ui.components.FOCUS_STIFFNESS
 import com.udpfs.app.ui.components.InfoRow
 import com.udpfs.app.ui.components.SupportingText
@@ -205,7 +206,7 @@ private fun StatusText(
 
                 ServerStatus.Running -> {
                     if (stats.uptimeSeconds > 0) {
-                        stringResource(R.string.status_running, formatDuration(Formatters.duration(stats.uptimeSeconds)))
+                        stringResource(R.string.status_running, formatDuration(formatDurationParts(stats.uptimeSeconds)))
                     } else {
                         stringResource(R.string.status_running_plain)
                     }
@@ -350,7 +351,7 @@ private fun MountCard(
             InfoRow(stringResource(R.string.mount_root), root.ifBlank { notSet })
             InfoRow(stringResource(R.string.mount_block_device), image.ifBlank { notSet })
             if (mount.totalBytes > 0) {
-                InfoRow(stringResource(R.string.mount_size), formatBytes(Formatters.bytes(mount.totalBytes)))
+                InfoRow(stringResource(R.string.mount_size), formatBytes(formatByteValue(mount.totalBytes)))
             }
             InfoRow(
                 stringResource(R.string.mount_mode),

@@ -44,6 +44,13 @@ import kotlinx.coroutines.flow.map
 
 enum class Screen { Server, Config, Stats }
 
+private val Screen.labelRes: Int get() =
+    when (this) {
+        Screen.Server -> R.string.nav_server
+        Screen.Config -> R.string.nav_config
+        Screen.Stats -> R.string.nav_stats
+    }
+
 enum class BrowseMode { Directory, File }
 
 enum class BrowseTarget { FsRoot, BlockDevice }
@@ -92,7 +99,7 @@ fun UdpfsApp() {
                             selected = screen == dest,
                             onClick = { screen = dest },
                             icon = { Icon(painterResource(icon), contentDescription = null) },
-                            label = { Text(screenLabel(dest)) },
+                            label = { Text(stringResource(dest.labelRes)) },
                         )
                     }
                 }
@@ -136,7 +143,7 @@ fun UdpfsApp() {
                                     selected = screen == dest,
                                     onClick = { screen = dest },
                                     icon = { Icon(painterResource(icon), contentDescription = null) },
-                                    label = { Text(screenLabel(dest)) },
+                                    label = { Text(stringResource(dest.labelRes)) },
                                 )
                             }
                         }
@@ -166,11 +173,3 @@ private fun AppContent(
         Screen.Stats -> stats()
     }
 }
-
-@Composable
-private fun screenLabel(screen: Screen): String =
-    when (screen) {
-        Screen.Server -> stringResource(R.string.nav_server)
-        Screen.Config -> stringResource(R.string.nav_config)
-        Screen.Stats -> stringResource(R.string.nav_stats)
-    }
