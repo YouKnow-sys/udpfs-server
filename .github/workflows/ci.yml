@@ -3,7 +3,11 @@ name: ci
 on:
   push:
     branches: [master]
+    tags: ['v*']
   pull_request:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -55,3 +59,10 @@ jobs:
         with:
           name: release-apks
           path: udpfs-server/build/outputs/apk/release/*.apk
+
+      - name: Attach APKs to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: udpfs-server/build/outputs/apk/release/*.apk
+          generate_release_notes: true
