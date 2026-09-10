@@ -47,13 +47,13 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: echo "$KEYSTORE_BASE64" | base64 -d > release.jks
 
-      - name: Lint and assemble split-ABI release APKs
+      - name: Lint (ktlint + Android lint) and assemble split-ABI release APKs
         env:
           UDPFS_STORE_FILE: release.jks
           UDPFS_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           UDPFS_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           UDPFS_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew ktlintCheck assembleRelease -PabiSplits=true
+        run: ./gradlew ktlintCheck lintRelease assembleRelease -PabiSplits=true
 
       - uses: actions/upload-artifact@v4
         with:

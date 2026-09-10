@@ -60,7 +60,8 @@ enum class BrowseTarget { FsRoot, BlockDevice }
 fun UdpfsApp() {
     val vm: AppViewModel = viewModel(factory = AppViewModel.Factory)
 
-    val showStats by vm.config.map { it.showStats }.collectAsStateWithLifecycle(initialValue = true)
+    val config by vm.config.collectAsStateWithLifecycle()
+    val showStats = config.showStats
 
     var screen by rememberSaveable { mutableStateOf(Screen.Server) }
     var browseTarget by rememberSaveable { mutableStateOf<BrowseTarget?>(null) }
@@ -110,7 +111,6 @@ fun UdpfsApp() {
     ) { padding ->
         val target = browseTarget
         if (target != null) {
-            val config = vm.config.value
             Box(Modifier.fillMaxSize().padding(padding)) {
                 FileBrowserScreen(
                     mode = if (target == BrowseTarget.FsRoot) BrowseMode.Directory else BrowseMode.File,

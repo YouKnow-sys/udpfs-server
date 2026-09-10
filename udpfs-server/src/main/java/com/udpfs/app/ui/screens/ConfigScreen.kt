@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -63,7 +64,7 @@ fun ConfigScreen(
     val enabled = status is ServerStatus.Idle
     val update = vm::updateConfig
 
-    var resumeKey by remember { mutableStateOf(0) }
+    var resumeKey by remember { mutableIntStateOf(0) }
     var awaitedPause by remember { mutableStateOf(false) }
     LifecycleEventEffect(Lifecycle.Event.ON_PAUSE) { awaitedPause = true }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {

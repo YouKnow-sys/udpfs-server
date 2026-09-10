@@ -36,9 +36,11 @@ class ServerService : Service() {
 
     override fun onCreate() {
         repo = (application as UdpfsApplication).serverRepository
-        notifications.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, getString(R.string.channel_name), NotificationManager.IMPORTANCE_LOW),
-        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            notifications.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, getString(R.string.channel_name), NotificationManager.IMPORTANCE_LOW),
+            )
+        }
     }
 
     override fun onStartCommand(
@@ -81,8 +83,10 @@ class ServerService : Service() {
     private fun foregroundType(): Int =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
-        } else {
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+        } else {
+            0
         }
 
     override fun onTimeout(
@@ -182,6 +186,7 @@ class ServerService : Service() {
             .setContentTitle(getString(R.string.notif_title))
             .setContentText(text)
             .setContentIntent(open)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .addAction(0, getString(R.string.notif_stop), stop)

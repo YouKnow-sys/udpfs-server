@@ -14,7 +14,7 @@ DEBUG_APK_DIR   := udpfs-server/build/outputs/apk/debug
 RELEASE_APK_DIR := udpfs-server/build/outputs/apk/release
 
 .DELETE_ON_ERROR:
-.PHONY: all aar apk apk-debug apk-release apk-abi install install-release test check clean check-env
+.PHONY: all aar apk apk-debug apk-release apk-abi install install-release test check lint clean check-env
 
 all: apk-debug
 
@@ -26,14 +26,18 @@ check-env:
 test:
 	go test -tags nochd ./udpfsdbridge/ -count=1
 
+lint:
+	./gradlew :udpfs-server:lintRelease
+
 check:
 	go vet -tags nochd ./udpfsdbridge/
 	$(MAKE) test
+	$(MAKE) lint
 
 aar: check-env
 	@mkdir -p udpfs-server/libs
 	ANDROID_HOME="$(ANDROID_HOME)" ANDROID_NDK_HOME="$(ANDROID_NDK_HOME)" \
-	gomobile bind -tags nochd -target=android -androidapi 28 -javapkg=com.udpfs \
+	gomobile bind -tags nochd -target=android -androidapi 23 -javapkg=com.udpfs \
 		-ldflags="-s -w" -o "$(AAR_OUT)" ./udpfsdbridge
 
 apk-debug: aar

@@ -33,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -106,7 +107,7 @@ fun FileBrowserScreen(
     var dirPath by rememberSaveable { mutableStateOf(startPath.ifBlank { DEFAULT_START }) }
     val atVolumes = dirPath in VOLUME_PARENTS
 
-    var resumeKey by remember { mutableStateOf(0) }
+    var resumeKey by remember { mutableIntStateOf(0) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { resumeKey++ }
 
     var storageGranted by remember(context, resumeKey) { mutableStateOf(Permissions.hasStorageAccess(context)) }

@@ -1,18 +1,12 @@
 package com.udpfs.app.core
 
+import android.system.ErrnoException
+import android.system.Os
+import android.system.OsConstants
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
-import java.nio.channels.FileChannel
-import java.nio.file.AccessDeniedException
-import java.nio.file.FileSystemException
-import java.nio.file.Files
-import java.nio.file.LinkOption
-import java.nio.file.NoSuchFileException
-import java.nio.file.ReadOnlyFileSystemException
-import java.nio.file.StandardOpenOption
-import java.nio.file.attribute.BasicFileAttributes
 import java.util.concurrent.Executors
 
 enum class WriteAccess {
@@ -35,44 +29,44 @@ fun probeWriteAccess(target: File): WriteAccess =
 private fun probeObservedTarget(target: File): WriteAccess {
     val attributes =
         try {
-            Files.readAttributes(target.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
-        } catch (_: FileSystemException) {
+            Os.lstat(target.absolutePath)
+        } catch (_: ErrnoException) {
             return WriteAccess.Inaccessible
         }
-    return if (attributes.isDirectory) probeDirectory(target) else probeFile(target)
+    return if (OsConstants.S_ISDIR(attributes.st_mode)) probeDirectory(target) else probeFile(target)
 }
 
 private fun probeDirectory(directory: File): WriteAccess {
-    val probe = File(directory, PROBE_PREFIX + System.nanoTime()).toPath()
-    try {
-        Files.createFile(probe)
-    } catch (_: NoSuchFileException) {
-        return WriteAccess.Inaccessible
-    } catch (_: AccessDeniedException) {
-        return WriteAccess.ReadOnly
-    } catch (_: ReadOnlyFileSystemException) {
-        return WriteAccess.ReadOnly
-    }
-    val landedAtProbePath =
+    val probe = File(directory, PROBE_PREFIX + System.nanoTime())
+    val fd =
         try {
-            Files.readAttributes(probe, BasicFileAttributes::class.java)
-            true
-        } catch (_: NoSuchFileException) {
-            false
+            Os.open(
+                probe.absolutePath,
+                OsConstants.O_CREAT or OsConstants.O_EXCL or OsConstants.O_WRONLY,
+                OsConstants.S_IRUSR or OsConstants.S_IWUSR,
+            )
+        } catch (e: ErrnoException) {
+            return when (e.errno) {
+                OsConstants.ENOENT -> WriteAccess.Inaccessible
+                else -> WriteAccess.ReadOnly
+            }
         }
-    runCatching { Files.deleteIfExists(probe) }
+    val landedAtProbePath = probe.exists()
+    runCatching { Os.close(fd) }
+    runCatching { probe.delete() }
     return if (landedAtProbePath) WriteAccess.Writable else WriteAccess.ReadOnly
 }
 
 private fun probeFile(file: File): WriteAccess =
     try {
-        FileChannel.open(file.toPath(), StandardOpenOption.APPEND).use { WriteAccess.Writable }
-    } catch (_: NoSuchFileException) {
-        WriteAccess.Inaccessible
-    } catch (_: AccessDeniedException) {
-        WriteAccess.ReadOnly
-    } catch (_: ReadOnlyFileSystemException) {
-        WriteAccess.ReadOnly
+        val fd = Os.open(file.absolutePath, OsConstants.O_WRONLY or OsConstants.O_APPEND, 0)
+        runCatching { Os.close(fd) }
+        WriteAccess.Writable
+    } catch (e: ErrnoException) {
+        when (e.errno) {
+            OsConstants.ENOENT -> WriteAccess.Inaccessible
+            else -> WriteAccess.ReadOnly
+        }
     }
 
 private val probeDispatcher =

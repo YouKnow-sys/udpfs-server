@@ -61,9 +61,9 @@ import com.udpfs.app.ui.format.formatBytes
 import com.udpfs.app.ui.format.formatDuration
 import com.udpfs.app.ui.format.formatRate
 import kotlinx.coroutines.flow.StateFlow
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun StatsScreen(
@@ -71,7 +71,7 @@ fun StatsScreen(
     isTv: Boolean = false,
 ) {
     var logExpanded by remember { mutableStateOf(false) }
-    val timeFormat = remember { DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault()) }
+    val timeFormat = remember { SimpleDateFormat("HH:mm:ss", Locale.US) }
 
     val sidePadding = if (isTv) 48.dp else 20.dp
     val listState = rememberLazyListState()
@@ -276,7 +276,7 @@ private fun PeerCard(
 @Composable
 private fun LogsCard(
     logs: StateFlow<List<LogLine>>,
-    timeFormat: DateTimeFormatter,
+    timeFormat: SimpleDateFormat,
     anchor: FocusRequester,
     up: FocusRequester,
     onClear: () -> Unit,
@@ -361,7 +361,7 @@ private fun LogsCard(
 @Composable
 private fun LogDialog(
     logs: StateFlow<List<LogLine>>,
-    timeFormat: DateTimeFormatter,
+    timeFormat: SimpleDateFormat,
     onClear: () -> Unit,
     onClose: () -> Unit,
 ) {
@@ -418,7 +418,7 @@ private fun StickToBottom(
 @Composable
 private fun LogLineRow(
     line: LogLine,
-    timeFormat: DateTimeFormatter,
+    timeFormat: SimpleDateFormat,
 ) {
     val color =
         when (line.level) {
@@ -429,7 +429,7 @@ private fun LogLineRow(
 
     val text =
         remember(line, timeFormat) {
-            "${timeFormat.format(Instant.ofEpochMilli(line.timeMillis))}  ${line.message}"
+            "${timeFormat.format(Date(line.timeMillis))}  ${line.message}"
         }
 
     Text(

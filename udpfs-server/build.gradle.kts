@@ -22,11 +22,11 @@ plugins {
 android {
     namespace = "com.udpfs.app"
 
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.udpfs.app"
-        minSdk = 28
+        minSdk = 23
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
@@ -78,6 +78,10 @@ android {
         resources.excludes += "/META-INF/**/LICENSE*"
         resources.excludes += "/META-INF/*.version"
         resources.excludes += "DebugProbesKt.bin"
+    }
+
+    lint {
+        baseline = file("lint-baseline.xml")
     }
 }
 
