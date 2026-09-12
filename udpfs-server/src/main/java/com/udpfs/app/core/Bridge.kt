@@ -1,7 +1,10 @@
 package com.udpfs.app.core
 
 import com.udpfs.udpfsdbridge.Config
+import com.udpfs.udpfsdbridge.MountInfo
+import com.udpfs.udpfsdbridge.PeerStats
 import com.udpfs.udpfsdbridge.ServerController
+import com.udpfs.udpfsdbridge.Stats
 import com.udpfs.udpfsdbridge.Udpfsdbridge
 
 enum class LogLevel {
@@ -38,7 +41,43 @@ data class TrafficCounters(
     val outOfOrder: Long = 0,
     val peerNackCount: Long = 0,
     val resetCount: Long = 0,
-)
+) {
+    constructor(s: Stats) : this(
+        bytesTx = s.bytesTx,
+        bytesRx = s.bytesRx,
+        avgTxThroughput = s.avgTxThroughput,
+        avgRxThroughput = s.avgRxThroughput,
+        totalOps = s.totalOps,
+        errors = s.errors,
+        reads = s.reads,
+        writes = s.writes,
+        packetsTx = s.packetsTx,
+        packetsRx = s.packetsRx,
+        retransmits = s.retransmits,
+        nackCount = s.nackCount,
+        outOfOrder = s.outOfOrder,
+        peerNackCount = s.peerNackCount,
+        resetCount = s.resetCount,
+    )
+
+    constructor(p: PeerStats) : this(
+        bytesTx = p.bytesTx,
+        bytesRx = p.bytesRx,
+        avgTxThroughput = p.avgTxThroughput,
+        avgRxThroughput = p.avgRxThroughput,
+        totalOps = p.totalOps,
+        errors = p.errors,
+        reads = p.reads,
+        writes = p.writes,
+        packetsTx = p.packetsTx,
+        packetsRx = p.packetsRx,
+        retransmits = p.retransmits,
+        nackCount = p.nackCount,
+        outOfOrder = p.outOfOrder,
+        peerNackCount = p.peerNackCount,
+        resetCount = p.resetCount,
+    )
+}
 
 data class PeerSnapshot(
     val addr: String,
@@ -122,95 +161,23 @@ private fun ServerConfig.toBridgeConfig(): Config {
     return c
 }
 
-private inline fun mapCounters(
-    bytesTx: Long,
-    bytesRx: Long,
-    avgTxThroughput: Double,
-    avgRxThroughput: Double,
-    totalOps: Long,
-    errors: Long,
-    reads: Long,
-    writes: Long,
-    packetsTx: Long,
-    packetsRx: Long,
-    retransmits: Long,
-    nackCount: Long,
-    outOfOrder: Long,
-    peerNackCount: Long,
-    resetCount: Long,
-) = TrafficCounters(
-    bytesTx,
-    bytesRx,
-    avgTxThroughput,
-    avgRxThroughput,
-    totalOps,
-    errors,
-    reads,
-    writes,
-    packetsTx,
-    packetsRx,
-    retransmits,
-    nackCount,
-    outOfOrder,
-    peerNackCount,
-    resetCount,
-)
-
-private fun com.udpfs.udpfsdbridge.Stats.toCounters() =
-    mapCounters(
-        bytesTx,
-        bytesRx,
-        avgTxThroughput,
-        avgRxThroughput,
-        totalOps,
-        errors,
-        reads,
-        writes,
-        packetsTx,
-        packetsRx,
-        retransmits,
-        nackCount,
-        outOfOrder,
-        peerNackCount,
-        resetCount,
-    )
-
-private fun com.udpfs.udpfsdbridge.PeerStats.toCounters() =
-    mapCounters(
-        bytesTx,
-        bytesRx,
-        avgTxThroughput,
-        avgRxThroughput,
-        totalOps,
-        errors,
-        reads,
-        writes,
-        packetsTx,
-        packetsRx,
-        retransmits,
-        nackCount,
-        outOfOrder,
-        peerNackCount,
-        resetCount,
-    )
-
-private fun com.udpfs.udpfsdbridge.Stats.toSnapshot(peers: List<PeerSnapshot> = emptyList()) =
+private fun Stats.toSnapshot(peers: List<PeerSnapshot> = emptyList()) =
     StatsSnapshot(
         running = running,
         uptimeSeconds = uptimeSeconds,
         peerCount = peerCount.toInt(),
-        counters = toCounters(),
+        counters = TrafficCounters(this),
         peers = peers,
     )
 
-private fun com.udpfs.udpfsdbridge.PeerStats.toSnapshot() =
+private fun PeerStats.toSnapshot() =
     PeerSnapshot(
         addr = addr.orEmpty(),
         lastSeenUnix = lastSeenUnix,
-        counters = toCounters(),
+        counters = TrafficCounters(this),
     )
 
-private fun com.udpfs.udpfsdbridge.MountInfo.toSnapshot(compressionFormats: List<String> = emptyList()) =
+private fun MountInfo.toSnapshot(compressionFormats: List<String> = emptyList()) =
     MountSnapshot(
         fsRoot = fsRoot.orEmpty(),
         blockDevice = blockDevice.orEmpty(),
@@ -221,4 +188,8 @@ private fun com.udpfs.udpfsdbridge.MountInfo.toSnapshot(compressionFormats: List
         compressionFormats = compressionFormats,
     )
 
-private fun String.toFormatList(): List<String> = split(',').filter { it.isNotBlank() }
+private fun String.toFormatList(): List<String> =
+    splitToSequence(',')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .toList()
