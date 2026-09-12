@@ -23,7 +23,7 @@ fun probeWriteAccess(target: File): WriteAccess =
     try {
         probeObservedTarget(target)
     } catch (_: Exception) {
-        WriteAccess.ReadOnly
+        WriteAccess.Inaccessible
     }
 
 private fun probeObservedTarget(target: File): WriteAccess {
@@ -36,6 +36,12 @@ private fun probeObservedTarget(target: File): WriteAccess {
     return if (OsConstants.S_ISDIR(attributes.st_mode)) probeDirectory(target) else probeFile(target)
 }
 
+private fun classifyWriteErrno(errno: Int): WriteAccess =
+    when (errno) {
+        OsConstants.EACCES, OsConstants.EPERM, OsConstants.EROFS -> WriteAccess.ReadOnly
+        else -> WriteAccess.Inaccessible
+    }
+
 private fun probeDirectory(directory: File): WriteAccess {
     val probe = File(directory, PROBE_PREFIX + System.nanoTime())
     val fd =
@@ -46,15 +52,12 @@ private fun probeDirectory(directory: File): WriteAccess {
                 OsConstants.S_IRUSR or OsConstants.S_IWUSR,
             )
         } catch (e: ErrnoException) {
-            return when (e.errno) {
-                OsConstants.ENOENT -> WriteAccess.Inaccessible
-                else -> WriteAccess.ReadOnly
-            }
+            return classifyWriteErrno(e.errno)
         }
-    val landedAtProbePath = probe.exists()
+
     runCatching { Os.close(fd) }
-    runCatching { probe.delete() }
-    return if (landedAtProbePath) WriteAccess.Writable else WriteAccess.ReadOnly
+    runCatching { Os.remove(probe.absolutePath) }
+    return WriteAccess.Writable
 }
 
 private fun probeFile(file: File): WriteAccess =
@@ -63,10 +66,7 @@ private fun probeFile(file: File): WriteAccess =
         runCatching { Os.close(fd) }
         WriteAccess.Writable
     } catch (e: ErrnoException) {
-        when (e.errno) {
-            OsConstants.ENOENT -> WriteAccess.Inaccessible
-            else -> WriteAccess.ReadOnly
-        }
+        classifyWriteErrno(e.errno)
     }
 
 private val probeDispatcher =
@@ -79,7 +79,7 @@ suspend fun probeWriteAccessCapped(target: File): WriteAccess {
         withTimeoutOrNull(WRITE_PROBE_TIMEOUT_MS) {
             withContext(probeDispatcher) { probeWriteAccess(target) }
         }
-    return access ?: WriteAccess.ReadOnly
+    return access ?: WriteAccess.Inaccessible
 }
 
 suspend fun forcesReadOnly(path: String): Boolean = path.isNotBlank() && probeWriteAccessCapped(File(path)) == WriteAccess.ReadOnly
